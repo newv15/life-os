@@ -51,9 +51,19 @@ export async function createTestUser(admin: Db, label: string): Promise<TestUser
   return user
 }
 
-/** Deleting the auth user cascades to every row they own. */
+/**
+ * Deleting the auth user cascades to every row they own.
+ *
+ * The error is checked rather than discarded on purpose: an earlier version
+ * ignored it, so when deletion started failing every finance test still passed
+ * while quietly leaving a user and their rows behind on each run. Cleanup that
+ * can fail silently is worse than no cleanup.
+ */
 export async function deleteTestUser(admin: Db, userId: string): Promise<void> {
-  if (userId) await admin.auth.admin.deleteUser(userId)
+  if (!userId) return
+
+  const { error } = await admin.auth.admin.deleteUser(userId)
+  if (error) throw new Error(`Utente di prova ${userId} non eliminato: ${error.message}`)
 }
 
 /** A client carrying a real session, for the code paths RLS actually guards. */

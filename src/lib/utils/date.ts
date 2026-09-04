@@ -166,6 +166,30 @@ export function isOverdue(date: Date | string | null | undefined, now: Date = ne
   return new Date(date).getTime() < now.getTime()
 }
 
+/**
+ * The calendar month a moment falls in, as inclusive YYYY-MM-DD bounds.
+ *
+ * Uses the local month for the same reason as everything else here: at 00:30
+ * on the first of the month, UTC is still in the previous one, and the
+ * dashboard would open on a month the user has already left.
+ */
+export function monthRange(
+  date: Date = new Date(),
+  timeZone: string = DEFAULT_TIMEZONE,
+): { from: string; to: string } {
+  const year = Number(formatInTimeZone(date, timeZone, 'yyyy'))
+  const month = Number(formatInTimeZone(date, timeZone, 'MM'))
+
+  // Day 0 of the next month is the last day of this one, leap years included.
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate()
+  const pad = (n: number) => String(n).padStart(2, '0')
+
+  return {
+    from: `${year}-${pad(month)}-01`,
+    to: `${year}-${pad(month)}-${pad(lastDay)}`,
+  }
+}
+
 /** Moves a calendar date by whole days, going through noon to dodge DST. */
 function shiftDays(isoDate: string, days: number, timeZone: string): string {
   const noon = fromZonedTime(`${isoDate}T12:00:00`, timeZone)

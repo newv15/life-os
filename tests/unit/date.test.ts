@@ -6,6 +6,7 @@ import {
   formatDateTime,
   formatRelativeDay,
   isOverdue,
+  monthRange,
   resolveCalendarDate,
   resolveInstant,
   startOfDayInTimeZone,
@@ -121,6 +122,31 @@ describe('relative day naming', () => {
     expect(isOverdue('2026-09-04T08:59:00Z', now)).toBe(true)
     expect(isOverdue('2026-09-04T09:01:00Z', now)).toBe(false)
     expect(isOverdue(null, now)).toBe(false)
+  })
+})
+
+describe('monthRange', () => {
+  it('covers the whole month the given day falls in', () => {
+    expect(monthRange(new Date('2026-09-15T12:00:00Z'))).toEqual({
+      from: '2026-09-01',
+      to: '2026-09-30',
+    })
+  })
+
+  it('gets February right in a leap year', () => {
+    expect(monthRange(new Date('2028-02-10T12:00:00Z'))).toEqual({
+      from: '2028-02-01',
+      to: '2028-02-29',
+    })
+  })
+
+  it('uses the local month, not the UTC one', () => {
+    // 00:30 on 1 October in Rome is 22:30Z on 30 September. The month the
+    // person is in is October.
+    expect(monthRange(new Date('2026-09-30T22:30:00Z'))).toEqual({
+      from: '2026-10-01',
+      to: '2026-10-31',
+    })
   })
 })
 
