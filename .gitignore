@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# The template must be committed - it documents the required configuration.
+# It contains only empty placeholders; real values live in .env.local.
+!.env.example
