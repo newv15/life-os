@@ -4,6 +4,8 @@ import {
   InvalidDateError,
   endOfDayInTimeZone,
   formatDateTime,
+  formatRelativeDay,
+  isOverdue,
   resolveCalendarDate,
   resolveInstant,
   startOfDayInTimeZone,
@@ -91,6 +93,34 @@ describe('day boundaries across DST', () => {
     // Last Sunday of October 2026: 03:00 becomes 02:00.
     const start = startOfDayInTimeZone('2026-10-25')
     expect(hours(start, endOfDayInTimeZone('2026-10-25'))).toBe(25)
+  })
+})
+
+describe('relative day naming', () => {
+  // A fixed "now" so these read the same in July as in January.
+  const now = new Date('2026-09-04T09:00:00Z') // 11:00 a Roma
+
+  it('names today, tomorrow and yesterday the way a person would', () => {
+    expect(formatRelativeDay('2026-09-04T16:00:00Z', now)).toBe('oggi')
+    expect(formatRelativeDay('2026-09-05T08:00:00Z', now)).toBe('domani')
+    expect(formatRelativeDay('2026-09-03T08:00:00Z', now)).toBe('ieri')
+  })
+
+  it('falls back to a date once the day has no name', () => {
+    expect(formatRelativeDay('2026-09-09T08:00:00Z', now)).toBe('09/09')
+  })
+
+  it('judges the day by the local clock, not by UTC', () => {
+    // 23:30 in Rome is still 21:30Z the same day, but 00:30 in Rome is
+    // 22:30Z the day BEFORE - which UTC would call today and the user
+    // would call tomorrow.
+    expect(formatRelativeDay('2026-09-04T22:30:00Z', now)).toBe('domani')
+  })
+
+  it('knows whether a moment has already passed', () => {
+    expect(isOverdue('2026-09-04T08:59:00Z', now)).toBe(true)
+    expect(isOverdue('2026-09-04T09:01:00Z', now)).toBe(false)
+    expect(isOverdue(null, now)).toBe(false)
   })
 })
 

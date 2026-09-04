@@ -136,6 +136,43 @@ export function formatDateTime(
   return formatInTimeZone(new Date(date), timeZone, 'dd/MM/yyyy HH:mm')
 }
 
+/**
+ * Names a day the way a person reading a list would: "oggi", "domani",
+ * "ieri", and a bare date once the day has no name.
+ *
+ * The comparison happens on the local calendar date, not on elapsed hours: a
+ * deadline at 00:30 Rome time is 22:30Z the previous day, and calling that
+ * "oggi" because UTC says so is exactly the kind of small lie that makes a
+ * list stop being trustworthy.
+ */
+export function formatRelativeDay(
+  date: Date | string,
+  now: Date = new Date(),
+  timeZone: string = DEFAULT_TIMEZONE,
+): string {
+  const target = formatInTimeZone(new Date(date), timeZone, 'yyyy-MM-dd')
+  const today = formatInTimeZone(now, timeZone, 'yyyy-MM-dd')
+
+  if (target === today) return 'oggi'
+  if (target === shiftDays(today, 1, timeZone)) return 'domani'
+  if (target === shiftDays(today, -1, timeZone)) return 'ieri'
+
+  return formatInTimeZone(new Date(date), timeZone, 'dd/MM')
+}
+
+/** True when the moment has already passed. A missing deadline is never late. */
+export function isOverdue(date: Date | string | null | undefined, now: Date = new Date()): boolean {
+  if (!date) return false
+  return new Date(date).getTime() < now.getTime()
+}
+
+/** Moves a calendar date by whole days, going through noon to dodge DST. */
+function shiftDays(isoDate: string, days: number, timeZone: string): string {
+  const noon = fromZonedTime(`${isoDate}T12:00:00`, timeZone)
+  const shifted = new Date(noon.getTime() + days * 24 * 60 * 60 * 1000)
+  return formatInTimeZone(shifted, timeZone, 'yyyy-MM-dd')
+}
+
 /** "giovedì 4 settembre" - the date as a person would say it out loud. */
 export function formatLongDate(
   date: Date | string = new Date(),
