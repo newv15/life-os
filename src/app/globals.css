@@ -1,26 +1,251 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
+
+/* =============================================================================
+   Life OS design tokens
+
+   This is a private instrument, used twice a day by one person - not a product
+   page. So: cool paper rather than warm cream, petrol ink rather than a bright
+   brand accent, and amber reserved exclusively for "now" and "overdue" so that
+   colour carries meaning instead of decoration.
+
+   Three type roles:
+     display  Fraunces        section headings and the daily greeting
+     body     Instrument Sans  everything that is read as prose or UI
+     data     JetBrains Mono   money, clock times, streaks - values that must
+                               align in a column and be compared at a glance
+   ========================================================================== */
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-body);
+  --font-mono: var(--font-data);
+  --font-heading: var(--font-display);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+
+  /* Semantic signals. Named for what they mean, not what they look like. */
+  --color-signal: var(--signal);
+  --color-signal-foreground: var(--signal-foreground);
+  --color-positive: var(--positive);
+  --color-rule: var(--rule);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root {
+  --radius: 0.5rem;
+
+  /* Cool paper, faintly green - reads as calm rather than nostalgic. */
+  --background: oklch(0.958 0.005 165);
+  --foreground: oklch(0.215 0.011 180);
+
+  --card: oklch(0.991 0.003 165);
+  --card-foreground: oklch(0.215 0.011 180);
+  --popover: oklch(0.991 0.003 165);
+  --popover-foreground: oklch(0.215 0.011 180);
+
+  /* Petrol: the ink this system writes in. */
+  --primary: oklch(0.398 0.056 197);
+  --primary-foreground: oklch(0.98 0.004 165);
+
+  --secondary: oklch(0.925 0.008 170);
+  --secondary-foreground: oklch(0.3 0.02 190);
+
+  --muted: oklch(0.925 0.008 170);
+  --muted-foreground: oklch(0.512 0.014 180);
+
+  --accent: oklch(0.9 0.017 185);
+  --accent-foreground: oklch(0.3 0.03 195);
+
+  /* Amber means one thing only: this is happening now, or it is late. */
+  --signal: oklch(0.68 0.128 72);
+  --signal-foreground: oklch(0.22 0.04 60);
+  --positive: oklch(0.567 0.079 158);
+  --destructive: oklch(0.514 0.152 26);
+
+  --rule: oklch(0.885 0.008 170);
+  --border: oklch(0.885 0.008 170);
+  --input: oklch(0.885 0.008 170);
+  --ring: oklch(0.398 0.056 197);
+
+  --chart-1: oklch(0.398 0.056 197);
+  --chart-2: oklch(0.567 0.079 158);
+  --chart-3: oklch(0.68 0.128 72);
+  --chart-4: oklch(0.512 0.014 180);
+  --chart-5: oklch(0.514 0.152 26);
+
+  --sidebar: oklch(0.938 0.007 168);
+  --sidebar-foreground: oklch(0.215 0.011 180);
+  --sidebar-primary: oklch(0.398 0.056 197);
+  --sidebar-primary-foreground: oklch(0.98 0.004 165);
+  --sidebar-accent: oklch(0.9 0.017 185);
+  --sidebar-accent-foreground: oklch(0.3 0.03 195);
+  --sidebar-border: oklch(0.885 0.008 170);
+  --sidebar-ring: oklch(0.398 0.056 197);
+}
+
+.dark {
+  --background: oklch(0.183 0.012 190);
+  --foreground: oklch(0.918 0.008 165);
+
+  --card: oklch(0.228 0.014 190);
+  --card-foreground: oklch(0.918 0.008 165);
+  --popover: oklch(0.228 0.014 190);
+  --popover-foreground: oklch(0.918 0.008 165);
+
+  --primary: oklch(0.722 0.086 191);
+  --primary-foreground: oklch(0.183 0.012 190);
+
+  --secondary: oklch(0.278 0.016 190);
+  --secondary-foreground: oklch(0.918 0.008 165);
+
+  --muted: oklch(0.278 0.016 190);
+  --muted-foreground: oklch(0.678 0.014 175);
+
+  --accent: oklch(0.31 0.024 193);
+  --accent-foreground: oklch(0.918 0.008 165);
+
+  --signal: oklch(0.772 0.115 74);
+  --signal-foreground: oklch(0.183 0.03 60);
+  --positive: oklch(0.68 0.083 158);
+  --destructive: oklch(0.652 0.145 25);
+
+  --rule: oklch(1 0 0 / 12%);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 16%);
+  --ring: oklch(0.722 0.086 191);
+
+  --chart-1: oklch(0.722 0.086 191);
+  --chart-2: oklch(0.68 0.083 158);
+  --chart-3: oklch(0.772 0.115 74);
+  --chart-4: oklch(0.678 0.014 175);
+  --chart-5: oklch(0.652 0.145 25);
+
+  --sidebar: oklch(0.208 0.013 190);
+  --sidebar-foreground: oklch(0.918 0.008 165);
+  --sidebar-primary: oklch(0.722 0.086 191);
+  --sidebar-primary-foreground: oklch(0.183 0.012 190);
+  --sidebar-accent: oklch(0.31 0.024 193);
+  --sidebar-accent-foreground: oklch(0.918 0.008 165);
+  --sidebar-border: oklch(1 0 0 / 12%);
+  --sidebar-ring: oklch(0.722 0.086 191);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display), Georgia, serif;
+    font-optical-sizing: auto;
+    letter-spacing: -0.015em;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Values that get compared down a column: amounts, times, streaks.
+   Declared as a utility, not a component class, so it can be composed with
+   @apply by the spine styles below. */
+@utility data {
+  font-family: var(--font-data), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+@layer components {
+  /* Small uppercase label used to name a region without shouting. */
+  .eyebrow {
+    @apply text-[0.6875rem] font-medium uppercase tracking-[0.14em] text-muted-foreground;
+  }
+
+  /* --- The day spine ------------------------------------------------------
+     The signature element. One continuous vertical rule down the day, with
+     each event, task and deadline pinned to it at its own hour. It exists
+     because the organising unit of this whole system is a single day: the
+     line is the day, and everything on screen hangs off it. */
+  .spine {
+    @apply relative pl-14;
+  }
+
+  .spine::before {
+    content: "";
+    @apply absolute top-2 bottom-2 left-[3.25rem] w-px bg-rule;
+  }
+
+  .spine-item {
+    @apply relative;
+  }
+
+  /* The hour, set in the data face so the column reads as a clock face. */
+  .spine-time {
+    @apply data absolute left-0 top-0 w-11 text-right text-xs text-muted-foreground;
+  }
+
+  .spine-dot {
+    @apply absolute left-[3rem] top-1.5 size-2 rounded-full border-2 border-background bg-muted-foreground;
+  }
+
+  .spine-item[data-now="true"] .spine-dot {
+    @apply bg-signal;
+  }
+
+  .spine-item[data-now="true"] .spine-time {
+    @apply text-signal font-medium;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

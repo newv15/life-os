@@ -1,36 +1,191 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Life OS
 
-## Getting Started
+Un sistema operativo personale AI-first: qualsiasi cosa della tua vita entra in
+linguaggio naturale — da Telegram o dal web — e il sistema capisce da solo cosa
+farne.
 
-First, run the development server:
+> «Ho speso 35 euro al supermercato»
+> → transazione registrata, categoria risolta, saldo aggiornato.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+> «Domani devo andare dal commercialista alle 10 e ricordarmi i documenti»
+> → evento in calendario, task collegato, promemoria.
+
+Uso personale, singolo utente, costo **€0/mese**.
+
+---
+
+## Come è fatto
+
+```
+WEB APP (Next.js)          TELEGRAM BOT
+       │                         │
+       └───────┬─────────────────┘
+               ▼
+        INTERFACE ADAPTERS          risolvono l'identità utente
+               ▼
+          AI SERVICE                contesto → provider → tool loop → log
+               ▼
+        TOOL REGISTRY               ~35 tool tipizzati con zod
+               ▼
+       BUSINESS LOGIC               lib/services — unico punto che scrive
+               ▼
+        DATA ACCESS                 lib/db/repositories — userId obbligatorio
+               ▼
+     SUPABASE POSTGRES + RLS
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Telegram e web **non** sono due sistemi: divergono solo nel primo livello. Dallo
+`AI SERVICE` in giù eseguono lo stesso identico codice, sullo stesso database.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Tre regole che spiegano quasi tutte le scelte di questo repo:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. **L'AI non è il database.** Il modello emette solo nomi di tool e argomenti
+   JSON. Non vede SQL, non ha un client Supabase, non riceve mai la service role
+   key. Ogni handler riceve `userId` dal server, mai dal modello.
+2. **Il database è la fonte di verità.** La memoria dell'AI non sostituisce i
+   dati strutturati: se sono in disaccordo, vincono le tabelle.
+3. **Le date non le calcola il modello.** Riceve l'istante corrente in
+   `Europe/Rome` e deve restituire un valore ISO assoluto; `lib/utils/date.ts`
+   valida e converte. Se è ambiguo si chiede, non si indovina.
 
-## Learn More
+## Stack
 
-To learn more about Next.js, take a look at the following resources:
+| Livello | Scelta | Perché |
+|---|---|---|
+| Frontend | Next.js 16 (App Router), React 19, TypeScript strict, Tailwind v4, shadcn/ui | — |
+| Backend | Route Handlers + Server Actions | niente server separato da mantenere |
+| Database | Supabase Postgres + RLS | free tier, auth inclusa |
+| Auth | Supabase Auth (email + password) | utente singolo, registrazione chiusa |
+| AI | interfaccia `AIProvider`, default Gemini Flash | intercambiabile via env var |
+| Bot | Telegram Bot API via webhook | gratis, già sul telefono |
+| Hosting | Vercel Hobby | — |
+| Scheduler | **GitHub Actions**, non Vercel Cron | Vercel Hobby esegue i cron 1 volta al giorno: inutilizzabile per i promemoria |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Requisiti
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- Node.js 20+
+- Un progetto Supabase
+- Un bot Telegram (@BotFather)
+- Una API key Google Gemini (free tier)
 
-## Deploy on Vercel
+## Sviluppo locale
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npm install
+cp .env.example .env.local   # poi compila i valori
+npm run dev
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Comandi
+
+| Comando | Cosa fa |
+|---|---|
+| `npm run dev` | Server di sviluppo |
+| `npm run build` | Build di produzione |
+| `npm run typecheck` | TypeScript strict, senza emettere |
+| `npm run lint` | ESLint |
+| `npm test` | Test unitari e di integrazione (vitest) |
+| `npm run test:e2e` | Test end-to-end (playwright) |
+
+## Configurazione
+
+### Supabase
+
+1. Crea un progetto (regione europea, per la latenza).
+2. Applica le migration in ordine da `supabase/migrations/`, dalla `0001` alla
+   `0008`. Creano 28 tabelle, gli enum, gli indici, i trigger, la RLS su tutte
+   le tabelle e il bootstrap del nuovo utente (conti e categorie italiane di
+   default).
+3. Genera i tipi:
+   ```bash
+   npx supabase gen types typescript --project-id <ref> > src/types/database.ts
+   ```
+4. Crea il tuo utente da **Authentication → Users**, poi **disabilita la
+   registrazione** in Authentication → Providers: il sistema è mono-utente.
+5. Copia URL, anon key e service role key in `.env.local`.
+
+### Telegram
+
+1. Crea il bot con [@BotFather](https://t.me/botfather) e prendi il token.
+2. Genera un `TELEGRAM_WEBHOOK_SECRET` casuale e lungo.
+3. Dopo il deploy, registra il webhook:
+   ```bash
+   curl -X POST "https://api.telegram.org/bot<TOKEN>/setWebhook" -d "url=https://<app>.vercel.app/api/telegram/webhook" -d "secret_token=<SECRET>"
+   ```
+4. Dal web, in Impostazioni, genera il codice di collegamento e mandalo al bot
+   con `/link CODICE`. L'associazione usa l'id numerico Telegram, mai lo
+   username, che è falsificabile.
+
+### AI
+
+```env
+AI_PROVIDER=gemini
+AI_API_KEY=...
+AI_MODEL=gemini-2.5-flash
+```
+
+Cambiare modello o fornitore è una modifica di ambiente, non di codice:
+`AI_PROVIDER=openai-compatible` più `AI_BASE_URL` copre Groq, OpenRouter e
+Ollama in locale.
+
+### Scheduler
+
+Il tick vive in `.github/workflows/cron-tick.yml` e chiama
+`POST /api/cron/tick` ogni 5 minuti. Servono due **repository secrets**:
+`APP_URL` e `CRON_SECRET` (lo stesso valore configurato su Vercel).
+
+L'endpoint è idempotente e recupera tutto ciò che è scaduto dall'ultima
+esecuzione: un tick saltato o in ritardo non perde nulla.
+
+## Deploy su Vercel
+
+1. Collega il repository.
+2. Inserisci tutte le variabili di `.env.example` (nessuna eccezione: la build
+   passa anche senza, ma l'app fallisce con un errore esplicito al primo uso).
+3. Imposta `NEXT_PUBLIC_APP_URL` sull'URL di produzione.
+4. Registra il webhook Telegram su quell'URL.
+
+## Sicurezza
+
+- RLS attiva su tutte le tabelle, policy uniforme `user_id = auth.uid()`.
+- Le chiavi esterne sono **composite** `(id, user_id)`: il database rifiuta di
+  collegare fra loro record di utenti diversi anche quando la RLS è scavalcata.
+- **Telegram e cron girano con la service role key, che bypassa la RLS.** Su
+  quei percorsi la garanzia non è la RLS ma la disciplina del layer repository:
+  `userId` è un argomento obbligatorio di ogni funzione. Il client service-role
+  vive solo in `src/lib/db/admin.ts`, protetto da `import 'server-only'`.
+- Il webhook verifica `X-Telegram-Bot-Api-Secret-Token` e deduplica gli
+  `update_id`, così un retry di Telegram non registra due volte la stessa spesa.
+- Nessun segreto nei log, nessun analytics di terze parti, nessun tracking.
+
+## Struttura
+
+```
+src/
+  app/            route: (app) autenticato, login, api
+  components/     ui (shadcn), layout, dashboard
+  lib/
+    ai/           provider abstraction, tool registry, context builder
+    services/     business logic per dominio
+    db/           client, server, admin, repositories
+    telegram/     webhook, auth, comandi, notifiche
+    automation/   tick, briefing, review, insights
+    utils/        date (Europe/Rome), valuta, ricorrenze
+supabase/migrations/
+tests/            unit, integration, e2e
+```
+
+Il confine da non superare: i componenti React chiamano i servizi, i servizi
+chiamano i repository, e nessuna query Supabase vive fuori da `lib/db`.
+
+## Stato
+
+| Milestone | Stato |
+|---|---|
+| M1 Foundation | in corso |
+| M2 Core dati (Inbox, Task, Progetti, Obiettivi, Finanze) | da fare |
+| M3 Motore AI + Command Bar | da fare |
+| M4 Telegram | da fare — **fine MVP** |
+| M5 Calendario, Abitudini, Journal, Persone, Time tracking | da fare |
+| M6 Automazioni, review, insight | da fare |
+| M7 Rifinitura, ⌘K, ricerca globale, export | da fare |

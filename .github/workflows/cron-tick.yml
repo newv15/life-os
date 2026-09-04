@@ -1,0 +1,47 @@
+name: cron tick
+
+# The scheduler for the whole system.
+#
+# Vercel's Hobby plan allows 2 cron jobs that fire once a day, which cannot
+# deliver "your appointment starts in 30 minutes". So scheduling lives here and
+# the app exposes a single idempotent endpoint that catches up on everything
+# due since the last run - a delayed or skipped tick loses nothing.
+#
+# Required repository secrets:
+#   APP_URL      https://<your-app>.vercel.app
+#   CRON_SECRET  the same value configured in the Vercel environment
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: cron-tick
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call the tick endpoint
+        run: |
+          status=$(curl --silent --show-error --location \
+            --max-time 60 \
+            --write-out '%{http_code}' \
+            --output /tmp/tick-response.json \
+            --request POST "${APP_URL}/api/cron/tick" \
+            --header "Authorization: Bearer ${CRON_SECRET}" \
+            --header 'Content-Type: application/json')
+
+          echo "HTTP ${status}"
+          cat /tmp/tick-response.json || true
+
+          if [ "$status" != "200" ]; then
+            echo "::error::Tick failed with HTTP ${status}"
+            exit 1
+          fi
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
