@@ -109,3 +109,25 @@ export const ACCOUNT_TYPE_LABELS: Record<Enums['account_type'], string> = {
   savings: 'Risparmi',
   other: 'Altro',
 }
+
+export const HABIT_FREQUENCIES = ['daily', 'weekly', 'custom'] as const
+export type HabitFrequenciesMatchDb = Assert<
+  SameMembers<Enums['habit_frequency'], typeof HABIT_FREQUENCIES>
+>
+
+export const HABIT_FREQUENCY_LABELS: Record<Enums['habit_frequency'], string> = {
+  daily: 'Ogni giorno',
+  weekly: 'Giorni scelti',
+  custom: 'Personalizzata',
+}
+
+/** Monday first, the way a week is read here. */
+export const WEEKDAY_LABELS: Record<number, string> = {
+  1: 'lun',
+  2: 'mar',
+  3: 'mer',
+  4: 'gio',
+  5: 'ven',
+  6: 'sab',
+  7: 'dom',
+}
