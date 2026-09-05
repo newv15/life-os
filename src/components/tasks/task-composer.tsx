@@ -8,6 +8,10 @@ import { Input } from '@/components/ui/input'
 import { PRIORITIES, PRIORITY_LABELS } from '@/lib/validation/enums'
 import { createTaskAction } from '@/app/(app)/tasks/actions'
 import type { ActionResult } from '@/lib/actions/result'
+import type { ProjectWithProgress } from '@/lib/services/projects'
+
+const SELECT_CLASS =
+  'h-9 rounded-md border border-input bg-transparent px-2 text-sm shadow-xs focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none'
 
 /**
  * Adding a task should cost one line and one keystroke.
@@ -17,7 +21,7 @@ import type { ActionResult } from '@/lib/actions/result'
  * datetime-local on purpose: it emits "2026-09-05T10:00", a wall clock with no
  * zone, which is exactly what the validation layer reads as local time.
  */
-export function TaskComposer() {
+export function TaskComposer({ projects = [] }: { projects?: ProjectWithProgress[] }) {
   const [state, formAction] = useActionState<ActionResult | null, FormData>(
     createTaskAction,
     null,
@@ -52,7 +56,7 @@ export function TaskComposer() {
             name="priority"
             aria-label="Priorità"
             defaultValue="medium"
-            className="h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+            className={SELECT_CLASS}
           >
             {PRIORITIES.map((priority) => (
               <option key={priority} value={priority}>
@@ -60,6 +64,21 @@ export function TaskComposer() {
               </option>
             ))}
           </select>
+          {projects.length > 0 ? (
+            <select
+              name="projectId"
+              aria-label="Progetto"
+              defaultValue=""
+              className={SELECT_CLASS}
+            >
+              <option value="">Nessun progetto</option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))}
+            </select>
+          ) : null}
           <AddButton />
         </div>
       </div>

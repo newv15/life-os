@@ -192,7 +192,7 @@ chiamano i repository, e nessuna query Supabase vive fuori da `lib/db`.
 | Milestone | Stato |
 |---|---|
 | M1 Foundation | completato — schema applicato, RLS verificata, login funzionante |
-| M2 Core dati (Inbox, Task, Progetti, Obiettivi, Finanze) | da fare |
+| M2 Core dati (Inbox, Task, Progetti, Obiettivi, Finanze) | completato |
 | M3 Motore AI + Command Bar | da fare |
 | M4 Telegram | da fare — **fine MVP** |
 | M5 Calendario, Abitudini, Journal, Persone, Time tracking | da fare |

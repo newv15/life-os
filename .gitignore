@@ -43,3 +43,6 @@ next-env.d.ts
 # The template must be committed - it documents the required configuration.
 # It contains only empty placeholders; real values live in .env.local.
 !.env.example
+
+# Throwaway scripts used while checking the UI in a browser.
+tmp-*.mjs

@@ -3,6 +3,7 @@ import { EmptyState, PageHeader } from '@/components/layout/page-header'
 import { TaskComposer } from '@/components/tasks/task-composer'
 import { TaskRow } from '@/components/tasks/task-row'
 import { createServerSupabase, requireUserId } from '@/lib/db/server'
+import { listProjects } from '@/lib/services/projects'
 import { listTasks } from '@/lib/services/tasks'
 
 export const metadata: Metadata = { title: 'Task · Life OS' }
@@ -11,16 +12,19 @@ export default async function TasksPage() {
   const db = await createServerSupabase()
   const userId = await requireUserId()
 
-  const [open, completed] = await Promise.all([
+  const [open, completed, projects] = await Promise.all([
     listTasks(db, userId),
     listTasks(db, userId, { status: 'done', limit: 20 }),
+    listProjects(db, userId),
   ])
+
+  const projectName = new Map(projects.map((project) => [project.id, project.name]))
 
   return (
     <>
       <PageHeader eyebrow="Attività" title="Task" />
 
-      <TaskComposer />
+      <TaskComposer projects={projects} />
 
       {open.length === 0 ? (
         <EmptyState
@@ -30,7 +34,11 @@ export default async function TasksPage() {
       ) : (
         <ul>
           {open.map((task) => (
-            <TaskRow key={task.id} task={task} />
+            <TaskRow
+              key={task.id}
+              task={task}
+              projectName={task.project_id ? projectName.get(task.project_id) : null}
+            />
           ))}
         </ul>
       )}
@@ -42,7 +50,11 @@ export default async function TasksPage() {
           </h2>
           <ul>
             {completed.map((task) => (
-              <TaskRow key={task.id} task={task} />
+              <TaskRow
+                key={task.id}
+                task={task}
+                projectName={task.project_id ? projectName.get(task.project_id) : null}
+              />
             ))}
           </ul>
         </section>
