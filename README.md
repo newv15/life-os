@@ -92,12 +92,12 @@ npm run dev
 ### Supabase
 
 1. Crea un progetto (regione europea, per la latenza).
-2. Applica le migration in ordine da `supabase/migrations/`, dalla `0001` alla
-   `0010`. Creano 29 tabelle, gli enum, gli indici, i trigger, la RLS su tutte
-   le tabelle, l'hardening delle funzioni e il bootstrap del nuovo utente (2
-   conti e 27 categorie italiane, così il sistema è usabile dal primo minuto).
+2. Applica **tutte** le migration in `supabase/migrations/`, in ordine numerico.
+   Creano 29 tabelle, gli enum, gli indici, i trigger, la RLS su tutte le
+   tabelle, l'hardening delle funzioni e il bootstrap del nuovo utente (2 conti
+   e 27 categorie italiane, così il sistema è usabile dal primo minuto).
    L'ordine è vincolante: la `0006` applica la RLS per introspezione su ciò che
-   esiste già.
+   esiste già, e le migration successive correggono vincoli create prima.
 3. Genera i tipi:
    ```bash
    npx supabase gen types typescript --project-id <ref> > src/types/database.ts
