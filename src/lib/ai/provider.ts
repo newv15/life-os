@@ -19,6 +19,14 @@ export type AIToolCall = {
   id: string
   name: string
   arguments: Record<string, unknown>
+  /**
+   * Provider state to hand back verbatim when this call is replayed.
+   *
+   * Gemini 3 issues a "thought signature" with every function call and rejects
+   * the next request if it is not returned with it. Nothing above the adapter
+   * should read this - it is carried, not understood.
+   */
+  opaque?: unknown
 }
 
 export type AIMessage =

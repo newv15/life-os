@@ -113,7 +113,11 @@ export class GeminiProvider implements AIProvider {
         body: JSON.stringify(body),
       })
     } catch (cause) {
-      throw new AIProviderError('Impossibile raggiungere il modello.', this.name, cause)
+      // The cause is kept in the message, not just attached: without it the
+      // only symptom is "cannot reach the model", which covers a DNS failure,
+      // a timeout and a TLS error alike.
+      const detail = cause instanceof Error ? `${cause.name}: ${cause.message}` : String(cause)
+      throw new AIProviderError(`Impossibile raggiungere il modello (${detail}).`, this.name, cause)
     }
 
     if (!response.ok) {

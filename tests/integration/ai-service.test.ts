@@ -295,6 +295,34 @@ describe.skipIf(!supabaseConfigured)('AI service', () => {
     })
   })
 
+  describe('when the model fails after already doing something', () => {
+    it('reports what it did instead of claiming nothing happened', async () => {
+      // The worst version of this bug: the tool ran, the next round failed, and
+      // the person was told the model was unreachable and their message parked
+      // in inbox. They would enter the expense again, and have it twice.
+      const { AIProviderError } = await import('@/lib/ai/provider')
+      const inboxBefore = await listInboxItems(admin, user.id)
+
+      const provider = new ScriptedProvider([
+        { toolCalls: [call('create_task', { title: 'Fatto prima del guasto' })] },
+        new AIProviderError('caduto al secondo giro', 'scripted'),
+      ])
+
+      const result = await run(provider, 'segna una cosa')
+
+      expect(result.executedTools).toEqual(['create_task'])
+      expect(result.reply).not.toMatch(/inbox/i)
+      expect(result.reply).toContain('Fatto prima del guasto')
+
+      // The task exists, so parking the message would guarantee a duplicate.
+      const tasks = await listTasks(admin, user.id)
+      expect(tasks.map((t) => t.title)).toContain('Fatto prima del guasto')
+
+      const inboxAfter = await listInboxItems(admin, user.id)
+      expect(inboxAfter.length).toBe(inboxBefore.length)
+    })
+  })
+
   describe('when the model is unavailable', () => {
     it('says so plainly and keeps what the person wrote', async () => {
       const before = await listInboxItems(admin, user.id)

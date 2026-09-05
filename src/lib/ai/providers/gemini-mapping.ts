@@ -92,8 +92,18 @@ export function toGeminiTools(tools: AIToolDefinition[]): GeminiTool[] {
 }
 
 export type GeminiPart =
-  | { text: string }
-  | { functionCall: { name: string; args: Record<string, unknown> } }
+  | { text: string; thoughtSignature?: string }
+  | {
+      functionCall: { name: string; args: Record<string, unknown> }
+      /**
+       * Opaque state Gemini 3 issues with a function call and demands back on
+       * the next request. Omitting it fails the whole conversation with
+       * "Function call is missing a thought_signature in functionCall parts",
+       * which surfaces as the model going down mid-turn - after a tool has
+       * already run.
+       */
+      thoughtSignature?: string
+    }
   | { functionResponse: { name: string; response: Record<string, unknown> } }
 
 export type GeminiContent = { role: 'user' | 'model'; parts: GeminiPart[] }
@@ -137,7 +147,11 @@ export function toGeminiContents(messages: AIMessage[]): {
     const parts: GeminiPart[] = []
     if (message.content && message.content.trim() !== '') parts.push({ text: message.content })
     for (const call of message.toolCalls ?? []) {
-      parts.push({ functionCall: { name: call.name, args: call.arguments } })
+      parts.push({
+        functionCall: { name: call.name, args: call.arguments },
+        // Returned exactly as issued, or the next request is rejected.
+        ...(typeof call.opaque === 'string' ? { thoughtSignature: call.opaque } : {}),
+      })
     }
 
     // Gemini rejects a content with no parts, which is exactly what an empty
@@ -183,6 +197,8 @@ export function fromGeminiResponse(response: GeminiResponse): AIToolResult {
         id: `${part.functionCall.name}-${index}`,
         name: part.functionCall.name,
         arguments: part.functionCall.args ?? {},
+        // Carried, not understood: it has to come back on the next request.
+        opaque: part.thoughtSignature,
       })
     }
   }

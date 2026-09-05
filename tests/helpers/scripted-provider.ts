@@ -24,9 +24,10 @@ export class ScriptedProvider implements AIProvider {
   /** Every request the service made, in order. */
   readonly requests: { messages: AIMessage[]; tools: AIToolDefinition[] }[] = []
 
-  private readonly steps: AIToolResult[]
+  /** A step may be an error, to script a provider that fails partway through. */
+  private readonly steps: (AIToolResult | Error)[]
 
-  constructor(steps: AIToolResult[]) {
+  constructor(steps: (AIToolResult | Error)[]) {
     this.steps = [...steps]
   }
 
@@ -38,6 +39,7 @@ export class ScriptedProvider implements AIProvider {
 
     const next = this.steps.shift()
     if (!next) return { text: 'Non ho altro da aggiungere.', toolCalls: [] }
+    if (next instanceof Error) throw next
     return next
   }
 

@@ -58,6 +58,8 @@ export async function handleUserMessage(options: HandleMessageOptions): Promise<
   ]
 
   const executedTools: string[] = []
+  /** What each tool actually did, in case the model dies before reporting it. */
+  const executedSummaries: string[] = []
   const tools = toolDefinitions()
 
   try {
@@ -126,7 +128,11 @@ export async function handleUserMessage(options: HandleMessageOptions): Promise<
         }
 
         const outcome = await runTool(db, userId, conversationId, tool, toolContext, parsed.data)
-        if (outcome.ok) executedTools.push(tool.name)
+        if (outcome.ok) {
+          executedTools.push(tool.name)
+          const summary = (outcome.payload as { risultato?: string }).risultato
+          if (summary) executedSummaries.push(summary)
+        }
 
         messages.push(toolResult(toolCall.id, tool.name, outcome.payload))
       }
@@ -139,7 +145,24 @@ export async function handleUserMessage(options: HandleMessageOptions): Promise<
     return { reply, executedTools, conversationId }
   } catch (error) {
     if (error instanceof AIProviderError) {
-      // The rule that makes an outage survivable: never lose what was typed.
+      // Logged, because the user-facing message is deliberately vague and
+      // without this the only symptom is "the AI is down" with no way to tell
+      // a rate limit from a malformed request.
+      console.error(`[ai] provider ${error.provider} non disponibile: ${error.message}`)
+
+      // Whether work already happened changes the right answer completely.
+      //
+      // If a tool ran and we then said "couldn't reach the model, saved to
+      // inbox", the person would enter the expense again and have it twice.
+      // So when something was done, report it and park nothing.
+      if (executedSummaries.length > 0) {
+        const reply = `${executedSummaries.join(' ')}\n\n(Il modello si è interrotto dopo, ma quello che ho scritto è registrato.)`
+        await saveMessage(db, userId, conversationId, { role: 'assistant', content: reply })
+        return { reply, executedTools, conversationId }
+      }
+
+      // Nothing was written, so the rule that makes an outage survivable
+      // applies: never lose what was typed.
       await captureInboxItem(db, userId, { rawText: message }, channel === 'telegram' ? 'telegram' : 'ai')
 
       const reply =

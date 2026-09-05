@@ -41,7 +41,11 @@ export const createTransactionTool = defineTool({
     accountName: z
       .string()
       .nullish()
-      .describe('Conto da cui esce o in cui entra il denaro. Se omesso si usa il primo conto.'),
+      .describe(
+        'Conto da cui esce o in cui entra il denaro. Indicalo SOLO se la persona lo ha nominato ' +
+          "esplicitamente: non dedurlo dal tipo di spesa. Se lo ometti si usa il conto predefinito, " +
+          'che è la scelta giusta quando non è stato detto.',
+      ),
     toAccountName: z
       .string()
       .nullish()

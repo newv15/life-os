@@ -258,3 +258,64 @@ describe('the real tool registry through the Gemini sanitiser', () => {
     )
   })
 })
+
+describe('thought signatures', () => {
+  /**
+   * Gemini 3 refuses a conversation that replays a function call without the
+   * opaque signature it issued with it: "Function call is missing a
+   * thought_signature in functionCall parts". The first round works, the
+   * second is rejected with a 400 - so a tool runs and the model then appears
+   * to go down, which is the worst possible way for this to fail.
+   */
+
+  it('keeps the signature that came with a function call', () => {
+    const result = fromGeminiResponse({
+      candidates: [
+        {
+          content: {
+            parts: [
+              {
+                functionCall: { name: 'create_task', args: {} },
+                thoughtSignature: 'firma-opaca',
+              },
+            ],
+          },
+        },
+      ],
+    })
+
+    expect(result.toolCalls[0].opaque).toBe('firma-opaca')
+  })
+
+  it('hands it back on the way in', () => {
+    const { contents } = toGeminiContents([
+      {
+        role: 'assistant',
+        toolCalls: [
+          { id: '1', name: 'create_task', arguments: { title: 'X' }, opaque: 'firma-opaca' },
+        ],
+      },
+    ])
+
+    expect(contents[0].parts[0]).toEqual({
+      functionCall: { name: 'create_task', args: { title: 'X' } },
+      thoughtSignature: 'firma-opaca',
+    })
+  })
+
+  it('omits the field entirely when there was no signature', () => {
+    const { contents } = toGeminiContents([
+      { role: 'assistant', toolCalls: [{ id: '1', name: 'x', arguments: {} }] },
+    ])
+
+    expect(contents[0].parts[0]).toEqual({ functionCall: { name: 'x', args: {} } })
+  })
+
+  it('survives a call that arrives without one', () => {
+    const result = fromGeminiResponse({
+      candidates: [{ content: { parts: [{ functionCall: { name: 'x', args: {} } }] } }],
+    })
+
+    expect(result.toolCalls[0].opaque).toBeUndefined()
+  })
+})
