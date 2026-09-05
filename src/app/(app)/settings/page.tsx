@@ -1,20 +1,27 @@
 import type { Metadata } from 'next'
 import { Check, Minus } from 'lucide-react'
 import { PageHeader } from '@/components/layout/page-header'
+import { TelegramLink } from '@/components/settings/telegram-link'
+import { createServerSupabase, requireUserId } from '@/lib/db/server'
+import { listTelegramLinks } from '@/lib/services/telegram-link'
 import { isAIConfigured, isTelegramConfigured } from '@/lib/env'
 import { cn } from '@/lib/utils'
 
 export const metadata: Metadata = { title: 'Impostazioni · Life OS' }
 
-export default function SettingsPage() {
+export default async function SettingsPage() {
   const ai = isAIConfigured()
   const telegram = isTelegramConfigured()
+
+  const db = await createServerSupabase()
+  const userId = await requireUserId()
+  const links = await listTelegramLinks(db, userId)
 
   return (
     <>
       <PageHeader eyebrow="Configurazione" title="Impostazioni" />
 
-      <section aria-labelledby="stato">
+      <section aria-labelledby="stato" className="mb-10">
         <h2 id="stato" className="eyebrow mb-3">
           Stato del sistema
         </h2>
@@ -29,10 +36,29 @@ export default function SettingsPage() {
           <StatusRow
             ready={telegram}
             title="Bot Telegram"
-            readyHint="Il bot può ricevere messaggi. Collega il tuo account per iniziare a usarlo."
+            readyHint="Il bot può ricevere messaggi."
             missingHint="Servono TELEGRAM_BOT_TOKEN e TELEGRAM_WEBHOOK_SECRET."
           />
         </ul>
+      </section>
+
+      <section aria-labelledby="telegram">
+        <h2 id="telegram" className="eyebrow mb-2">
+          Telegram
+        </h2>
+        <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
+          Il collegamento usa l&apos;identificativo numerico del tuo account Telegram, mai il nome
+          o lo @username, che chiunque può cambiare. Generi un codice qui e lo mandi al bot: da
+          quel momento riconosce te e nessun altro.
+        </p>
+
+        <TelegramLink
+          links={links.map((link) => ({
+            telegramUserId: link.telegram_user_id,
+            status: link.status,
+            linkedAt: link.linked_at,
+          }))}
+        />
       </section>
     </>
   )
