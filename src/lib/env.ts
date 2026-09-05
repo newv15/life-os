@@ -1,11 +1,17 @@
-import { z } from 'zod'
+import { z, type ZodType } from 'zod'
 
 /**
- * Environment access, validated once and centrally.
+ * Environment access, validated in groups.
  *
- * Server secrets are read lazily through functions rather than at module load,
- * so importing anything from this file in a client component cannot accidentally
- * pull a secret into the browser bundle.
+ * Grouping matters more than it looks. Validating every server variable at
+ * once meant the AI refused to start until a Telegram bot token existed, and
+ * the app was unusable during exactly the period when you configure it one
+ * piece at a time. Each feature now checks only what it needs, when it needs
+ * it, and says which variable is missing.
+ *
+ * Nothing is validated at import time either: Next evaluates modules while
+ * building, so parsing at import turns a missing variable into a failed build
+ * instead of a clear runtime error.
  */
 
 const publicSchema = z.object({
@@ -19,71 +25,135 @@ export type PublicEnv = z.infer<typeof publicSchema>
 let cachedPublicEnv: PublicEnv | null = null
 
 /**
- * Validated on first use rather than at import time.
- *
- * Next.js evaluates modules while building, so parsing at import would turn a
- * missing variable into a failed build instead of a clear runtime error - and
- * would make the whole app unbuildable before the Supabase project exists.
- *
  * The literal `process.env.X` references matter: Next replaces them at build
- * time only when written out in full, never via dynamic lookup.
+ * time only when written out in full, never via a dynamic lookup.
  */
 export function publicEnv(): PublicEnv {
   if (cachedPublicEnv) return cachedPublicEnv
 
-  const parsed = publicSchema.safeParse({
-    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
-  })
+  cachedPublicEnv = parse(
+    publicSchema,
+    {
+      NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+    },
+    'Supabase',
+  )
 
-  if (!parsed.success) {
-    const missing = parsed.error.issues.map((i) => i.path.join('.')).join(', ')
-    throw new Error(
-      `Variabili d'ambiente Supabase mancanti o non valide: ${missing}. ` +
-        'Copia .env.example in .env.local e compilalo.',
-    )
-  }
-
-  cachedPublicEnv = parsed.data
   return cachedPublicEnv
 }
 
+// --- Supabase (server) -------------------------------------------------------
+
 const serverSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
+})
+
+export function serverEnv() {
+  return parse(serverSchema, process.env, 'Supabase (server)')
+}
+
+// --- AI ----------------------------------------------------------------------
+
+const aiSchema = z.object({
   AI_PROVIDER: z.enum(['gemini', 'openai-compatible', 'anthropic']).default('gemini'),
   AI_API_KEY: z.string().min(1),
   AI_MODEL: z.string().min(1),
   AI_BASE_URL: z.string().url().optional(),
+})
+
+export type AIEnv = z.infer<typeof aiSchema>
+
+export function aiEnv(): AIEnv {
+  return parse(aiSchema, readOptional(process.env, ['AI_PROVIDER', 'AI_API_KEY', 'AI_MODEL', 'AI_BASE_URL']), 'AI')
+}
+
+/** Answers without throwing, so the UI can hide what is not set up yet. */
+export function isAIConfigured(): boolean {
+  return succeeds(() => aiEnv())
+}
+
+// --- Telegram ----------------------------------------------------------------
+
+const telegramSchema = z.object({
   TELEGRAM_BOT_TOKEN: z.string().min(1),
   TELEGRAM_WEBHOOK_SECRET: z.string().min(1),
   TELEGRAM_ALLOWED_USER_IDS: z.string().default(''),
+})
+
+export type TelegramEnv = z.infer<typeof telegramSchema> & { allowedUserIds: bigint[] }
+
+export function telegramEnv(): TelegramEnv {
+  const env = parse(
+    telegramSchema,
+    readOptional(process.env, [
+      'TELEGRAM_BOT_TOKEN',
+      'TELEGRAM_WEBHOOK_SECRET',
+      'TELEGRAM_ALLOWED_USER_IDS',
+    ]),
+    'Telegram',
+  )
+
+  return {
+    ...env,
+    // A second barrier on top of the database link. Empty means the link is
+    // the only check, which is already an identity check rather than a name.
+    allowedUserIds: env.TELEGRAM_ALLOWED_USER_IDS.split(',')
+      .map((value) => value.trim())
+      .filter((value) => value !== '')
+      .map((value) => BigInt(value)),
+  }
+}
+
+export function isTelegramConfigured(): boolean {
+  return succeeds(() => telegramEnv())
+}
+
+// --- Scheduler ---------------------------------------------------------------
+
+const cronSchema = z.object({
   CRON_SECRET: z.string().min(1),
 })
 
-export type ServerEnv = z.infer<typeof serverSchema>
-
-let cachedServerEnv: ServerEnv | null = null
-
-/** Throws with a readable message if a server secret is missing or malformed. */
-export function serverEnv(): ServerEnv {
-  if (cachedServerEnv) return cachedServerEnv
-
-  const parsed = serverSchema.safeParse(process.env)
-  if (!parsed.success) {
-    const missing = parsed.error.issues.map((i) => i.path.join('.')).join(', ')
-    throw new Error(`Variabili d'ambiente server mancanti o non valide: ${missing}`)
-  }
-
-  cachedServerEnv = parsed.data
-  return cachedServerEnv
+export function cronEnv() {
+  return parse(cronSchema, readOptional(process.env, ['CRON_SECRET']), 'Scheduler')
 }
 
-/** Telegram ids allowed to reach the bot at all, on top of the database link. */
-export function allowedTelegramUserIds(): bigint[] {
-  return serverEnv()
-    .TELEGRAM_ALLOWED_USER_IDS.split(',')
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .map((s) => BigInt(s))
+// --- internals ---------------------------------------------------------------
+
+/**
+ * Reads only the named keys, treating blank as absent.
+ *
+ * A variable declared but left empty - which is what copying .env.example
+ * produces - has to count as missing, or zod happily accepts "" and the
+ * failure moves to the first API call.
+ */
+function readOptional(source: NodeJS.ProcessEnv, keys: string[]): Record<string, string> {
+  const result: Record<string, string> = {}
+  for (const key of keys) {
+    const value = source[key]
+    if (value !== undefined && value.trim() !== '') result[key] = value
+  }
+  return result
+}
+
+function parse<T extends ZodType>(schema: T, source: unknown, group: string): z.infer<T> {
+  const result = schema.safeParse(source)
+  if (result.success) return result.data
+
+  const missing = result.error.issues.map((issue) => issue.path.join('.')).join(', ')
+  throw new Error(
+    `Configurazione ${group} incompleta: mancano o non sono valide ${missing}. ` +
+      'Controlla .env.local (o le variabili su Vercel).',
+  )
+}
+
+function succeeds(check: () => unknown): boolean {
+  try {
+    check()
+    return true
+  } catch {
+    return false
+  }
 }

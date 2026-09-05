@@ -1,7 +1,9 @@
 import { redirect } from 'next/navigation'
+import { CommandBar } from '@/components/ai/command-bar'
 import { BottomNav } from '@/components/layout/bottom-nav'
 import { Sidebar } from '@/components/layout/sidebar'
 import { getCurrentUserId } from '@/lib/db/server'
+import { isAIConfigured } from '@/lib/env'
 
 export default async function AppLayout({ children }: LayoutProps<'/'>) {
   // The proxy already redirects unauthenticated requests. This is the
@@ -14,7 +16,12 @@ export default async function AppLayout({ children }: LayoutProps<'/'>) {
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <main className="flex-1 px-5 py-6 md:px-10 md:py-9">
-          <div className="mx-auto w-full max-w-4xl">{children}</div>
+          <div className="mx-auto w-full max-w-4xl">
+            {/* Shown only once there is a model to talk to. An input that
+                always fails is worse than no input. */}
+            {isAIConfigured() ? <CommandBar /> : null}
+            {children}
+          </div>
         </main>
         <BottomNav />
       </div>
