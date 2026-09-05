@@ -1048,7 +1048,6 @@ export type Database = {
           id: string
           name: string
           priority: Database["public"]["Enums"]["priority_level"]
-          progress: number
           started_on: string | null
           status: Database["public"]["Enums"]["project_status"]
           updated_at: string
@@ -1063,7 +1062,6 @@ export type Database = {
           id?: string
           name: string
           priority?: Database["public"]["Enums"]["priority_level"]
-          progress?: number
           started_on?: string | null
           status?: Database["public"]["Enums"]["project_status"]
           updated_at?: string
@@ -1078,7 +1076,6 @@ export type Database = {
           id?: string
           name?: string
           priority?: Database["public"]["Enums"]["priority_level"]
-          progress?: number
           started_on?: string | null
           status?: Database["public"]["Enums"]["project_status"]
           updated_at?: string
@@ -1458,6 +1455,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      bootstrap_user: {
+        Args: { p_full_name?: string; p_user_id: string }
+        Returns: undefined
+      }
       global_search: {
         Args: { p_limit?: number; p_query: string; p_user_id: string }
         Returns: Database["public"]["CompositeTypes"]["search_result"][]
