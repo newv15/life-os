@@ -195,6 +195,6 @@ chiamano i repository, e nessuna query Supabase vive fuori da `lib/db`.
 | M2 Core dati (Inbox, Task, Progetti, Obiettivi, Finanze) | completato |
 | M3 Motore AI + Command Bar | completato — verificato con Gemini reale |
 | M4 Telegram | completato — **fine MVP**; manca solo il token del bot per la prova dal telefono |
-| M5 Calendario, Abitudini, Journal, Persone, Time tracking | da fare |
-| M6 Automazioni, review, insight | da fare |
+| M5 Calendario, Abitudini, Diario, Persone, Tempo | completato |
+| M6 Automazioni, review, insight | completato |
 | M7 Rifinitura, ⌘K, ricerca globale, export | da fare |

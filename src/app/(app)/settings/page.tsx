@@ -1,9 +1,11 @@
 import type { Metadata } from 'next'
 import { Check, Minus } from 'lucide-react'
 import { PageHeader } from '@/components/layout/page-header'
+import { Automations } from '@/components/settings/automations'
 import { TelegramLink } from '@/components/settings/telegram-link'
 import { createServerSupabase, requireUserId } from '@/lib/db/server'
 import { listTelegramLinks } from '@/lib/services/telegram-link'
+import { AUTOMATION_CATALOGUE, listAutomations } from '@/lib/services/automations'
 import { isAIConfigured, isTelegramConfigured } from '@/lib/env'
 import { cn } from '@/lib/utils'
 
@@ -15,7 +17,10 @@ export default async function SettingsPage() {
 
   const db = await createServerSupabase()
   const userId = await requireUserId()
-  const links = await listTelegramLinks(db, userId)
+  const [links, automations] = await Promise.all([
+    listTelegramLinks(db, userId),
+    listAutomations(db, userId),
+  ])
 
   return (
     <>
@@ -42,7 +47,7 @@ export default async function SettingsPage() {
         </ul>
       </section>
 
-      <section aria-labelledby="telegram">
+      <section aria-labelledby="telegram" className="mb-10">
         <h2 id="telegram" className="eyebrow mb-2">
           Telegram
         </h2>
@@ -57,6 +62,29 @@ export default async function SettingsPage() {
             telegramUserId: link.telegram_user_id,
             status: link.status,
             linkedAt: link.linked_at,
+          }))}
+        />
+      </section>
+
+      <section aria-labelledby="automazioni">
+        <h2 id="automazioni" className="eyebrow mb-2">
+          Quando farmi sentire
+        </h2>
+        <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
+          Sono poche di proposito. Un sistema che interrompe spesso è un sistema che si silenzia,
+          e a quel punto si perde anche l&apos;interruzione che serviva.
+        </p>
+
+        <Automations
+          catalogue={AUTOMATION_CATALOGUE}
+          telegramReady={links.some((link) => link.status === 'active')}
+          states={automations.map((rule) => ({
+            kind: rule.kind,
+            enabled: rule.enabled,
+            timeOfDay:
+              (rule.config as { time_of_day?: string } | null)?.time_of_day ??
+              AUTOMATION_CATALOGUE.find((entry) => entry.kind === rule.kind)?.defaultTime ??
+              '08:00',
           }))}
         />
       </section>
