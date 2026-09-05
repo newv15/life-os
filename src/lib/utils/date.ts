@@ -160,6 +160,18 @@ export function formatRelativeDay(
   return formatInTimeZone(new Date(date), timeZone, 'dd/MM')
 }
 
+/**
+ * The moment N days before a given one.
+ *
+ * A rolling window like "the last 7 days" counts whole 24-hour days rather
+ * than calendar days, so it does not stretch or shrink when the clocks change.
+ * It also exists so pages can express the window without calling Date.now()
+ * mid-render, which is not something a component may do.
+ */
+export function daysAgo(days: number, from: Date = new Date()): Date {
+  return new Date(from.getTime() - days * 24 * 60 * 60 * 1000)
+}
+
 /** True when the moment has already passed. A missing deadline is never late. */
 export function isOverdue(date: Date | string | null | undefined, now: Date = new Date()): boolean {
   if (!date) return false

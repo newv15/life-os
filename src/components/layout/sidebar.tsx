@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { LogOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { NAV_ITEMS, SETTINGS_ITEM, isActivePath } from '@/lib/navigation'
+import { NAV_GROUPS, SETTINGS_ITEM, isActivePath, type NavItem } from '@/lib/navigation'
 import { signOut } from '@/app/login/actions'
 
 export function Sidebar() {
@@ -13,21 +13,28 @@ export function Sidebar() {
   return (
     <nav
       aria-label="Navigazione principale"
-      className="hidden w-56 shrink-0 flex-col border-r border-rule bg-sidebar px-3 py-5 md:flex"
+      className="hidden w-56 shrink-0 flex-col overflow-y-auto border-r border-rule bg-sidebar px-3 py-5 md:flex"
     >
-      <Link href="/" className="mb-8 block border-l-2 border-primary pl-3">
+      <Link href="/" className="mb-7 block border-l-2 border-primary pl-3">
         <span className="font-heading text-lg leading-none">Life OS</span>
       </Link>
 
-      <ul className="flex flex-1 flex-col gap-0.5">
-        {NAV_ITEMS.map((item) => (
-          <li key={item.href}>
-            <SidebarLink item={item} active={isActivePath(pathname, item.href)} />
-          </li>
+      <div className="flex-1 space-y-5">
+        {NAV_GROUPS.map((group) => (
+          <div key={group.label}>
+            <p className="eyebrow mb-1.5 px-3">{group.label}</p>
+            <ul className="space-y-0.5">
+              {group.items.map((item) => (
+                <li key={item.href}>
+                  <SidebarLink item={item} active={isActivePath(pathname, item.href)} />
+                </li>
+              ))}
+            </ul>
+          </div>
         ))}
-      </ul>
+      </div>
 
-      <div className="mt-4 space-y-0.5 border-t border-rule pt-4">
+      <div className="mt-5 space-y-0.5 border-t border-rule pt-4">
         <SidebarLink
           item={SETTINGS_ITEM}
           active={isActivePath(pathname, SETTINGS_ITEM.href)}
@@ -46,13 +53,7 @@ export function Sidebar() {
   )
 }
 
-function SidebarLink({
-  item,
-  active,
-}: {
-  item: (typeof NAV_ITEMS)[number]
-  active: boolean
-}) {
+function SidebarLink({ item, active }: { item: NavItem; active: boolean }) {
   const Icon = item.icon
 
   return (

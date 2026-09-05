@@ -22,6 +22,20 @@ import {
   listProjectsTool,
   updateGoalProgressTool,
 } from '@/lib/ai/tools/planning'
+import {
+  completeHabitTool,
+  createEventTool,
+  createHabitTool,
+  createPersonTool,
+  getAgendaTool,
+  getTimeSummaryTool,
+  listHabitsTool,
+  listPeopleTool,
+  setPersonNextActionTool,
+  startTimerTool,
+  stopTimerTool,
+  writeJournalTool,
+} from '@/lib/ai/tools/life'
 
 /**
  * Everything the model is allowed to do.
@@ -47,6 +61,23 @@ const ALL_TOOLS: Tool[] = [
   createGoalTool,
   updateGoalProgressTool,
   listGoalsTool,
+  // Calendar
+  createEventTool,
+  getAgendaTool,
+  // Habits
+  createHabitTool,
+  completeHabitTool,
+  listHabitsTool,
+  // Journal
+  writeJournalTool,
+  // People
+  createPersonTool,
+  setPersonNextActionTool,
+  listPeopleTool,
+  // Time
+  startTimerTool,
+  stopTimerTool,
+  getTimeSummaryTool,
   // Capture and overview
   captureNoteTool,
   listInboxTool,

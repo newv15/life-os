@@ -4,6 +4,7 @@ import {
   InvalidDateError,
   endOfDayInTimeZone,
   formatDateTime,
+  daysAgo,
   formatRelativeDay,
   isOverdue,
   monthRange,
@@ -157,5 +158,24 @@ describe('formatting', () => {
 
   it('defaults to Europe/Rome', () => {
     expect(DEFAULT_TIMEZONE).toBe('Europe/Rome')
+  })
+})
+
+describe('daysAgo', () => {
+  const now = new Date('2026-09-05T14:00:00Z')
+
+  it('goes back whole days from the given moment', () => {
+    expect(daysAgo(7, now).toISOString()).toBe('2026-08-29T14:00:00.000Z')
+  })
+
+  it('accepts zero as now', () => {
+    expect(daysAgo(0, now).toISOString()).toBe(now.toISOString())
+  })
+
+  it('crosses a daylight saving change without drifting', () => {
+    // 25 October 2026 is when the clocks go back. Counting in whole days of
+    // 24 hours is what a "last 7 days" window means, and this pins it.
+    const afterChange = new Date('2026-10-28T12:00:00Z')
+    expect(daysAgo(7, afterChange).toISOString()).toBe('2026-10-21T12:00:00.000Z')
   })
 })

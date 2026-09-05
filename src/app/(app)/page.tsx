@@ -3,9 +3,12 @@ import Link from 'next/link'
 import { DaySpine, type SpineItem } from '@/components/dashboard/day-spine'
 import { EmptyState, PageHeader } from '@/components/layout/page-header'
 import { TaskRow } from '@/components/tasks/task-row'
+import { HabitList } from '@/components/habits/habit-list'
 import { createServerSupabase, requireUserId } from '@/lib/db/server'
+import { listEventsOnDay } from '@/lib/services/calendar'
 import { getFinancialSummary, listAccounts } from '@/lib/services/finance'
 import { listGoals } from '@/lib/services/goals'
+import { listHabits } from '@/lib/services/habits'
 import { listInboxItems } from '@/lib/services/inbox'
 import { listProjects } from '@/lib/services/projects'
 import { listTasks } from '@/lib/services/tasks'
@@ -28,32 +31,46 @@ export default async function TodayPage() {
   const endOfToday = endOfDayInTimeZone(today).toISOString()
   const range = monthRange()
 
-  const [dueToday, allOpen, accounts, summary, inbox, projects, goals] = await Promise.all([
-    // Everything still open that was due before tonight: today's work plus
-    // whatever slipped from before it.
-    listTasks(db, userId, { dueBefore: endOfToday }),
-    listTasks(db, userId),
-    listAccounts(db, userId),
-    getFinancialSummary(db, userId, range),
-    listInboxItems(db, userId),
-    listProjects(db, userId),
-    listGoals(db, userId),
-  ])
+  const [dueToday, allOpen, events, habits, accounts, summary, inbox, projects, goals] =
+    await Promise.all([
+      // Everything still open that was due before tonight: today's work plus
+      // whatever slipped from before it.
+      listTasks(db, userId, { dueBefore: endOfToday }),
+      listTasks(db, userId),
+      listEventsOnDay(db, userId, today),
+      listHabits(db, userId),
+      listAccounts(db, userId),
+      getFinancialSummary(db, userId, range),
+      listInboxItems(db, userId),
+      listProjects(db, userId),
+      listGoals(db, userId),
+    ])
 
   const projectName = new Map(projects.map((project) => [project.id, project.name]))
   const balance = accounts.reduce((sum, account) => sum + Number(account.current_balance), 0)
+  const habitsToday = habits.filter((habit) => habit.dueToday)
 
   // The spine is the shape of the day, so only things with a time belong on
-  // it. A task due "today" with no hour is work to fit in, not an appointment.
-  const spineItems: SpineItem[] = dueToday
-    .filter((task) => task.due_at && task.due_at >= `${today}T00:00:00`)
-    .map((task) => ({
-      id: task.id,
-      at: task.due_at!,
-      title: task.title,
-      detail: task.project_id ? projectName.get(task.project_id) : undefined,
-      now: isOverdue(task.due_at),
-    }))
+  // it: appointments, and tasks that carry an hour. A task due "today" with no
+  // hour is work to fit in, not an appointment.
+  const spineItems: SpineItem[] = [
+    ...events.map((event) => ({
+      id: event.id,
+      at: event.starts_at,
+      title: event.title,
+      detail: event.location ?? undefined,
+      now: isOverdue(event.starts_at) && !isOverdue(event.ends_at ?? event.starts_at),
+    })),
+    ...dueToday
+      .filter((task) => task.due_at && task.due_at >= `${today}T00:00:00`)
+      .map((task) => ({
+        id: task.id,
+        at: task.due_at!,
+        title: task.title,
+        detail: task.project_id ? projectName.get(task.project_id) : undefined,
+        now: isOverdue(task.due_at),
+      })),
+  ].sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())
 
   return (
     <>
@@ -72,9 +89,7 @@ export default async function TodayPage() {
         </h2>
         {dueToday.length === 0 ? (
           <EmptyState
-            title={
-              allOpen.length === 0 ? 'Niente in lista.' : 'Niente in scadenza oggi.'
-            }
+            title={allOpen.length === 0 ? 'Niente in lista.' : 'Niente in scadenza oggi.'}
             hint={
               allOpen.length === 0
                 ? 'Aggiungi il primo task da Task, oppure buttalo in Inbox se non hai ancora deciso cosa sia.'
@@ -94,17 +109,22 @@ export default async function TodayPage() {
         )}
       </section>
 
+      {habitsToday.length > 0 ? (
+        <section aria-labelledby="abitudini" className="mb-10">
+          <h2 id="abitudini" className="eyebrow mb-3">
+            Abitudini di oggi
+          </h2>
+          <HabitList habits={habitsToday} />
+        </section>
+      ) : null}
+
       <section aria-labelledby="colpo-docchio">
         <h2 id="colpo-docchio" className="eyebrow mb-3">
           A colpo d&apos;occhio
         </h2>
         <dl className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4">
           <Glance label="Saldo" value={formatEUR(balance)} href="/finance" />
-          <Glance
-            label="Uscite del mese"
-            value={formatEUR(summary.expense)}
-            href="/finance"
-          />
+          <Glance label="Uscite del mese" value={formatEUR(summary.expense)} href="/finance" />
           <Glance
             label="In inbox"
             value={String(inbox.length)}
