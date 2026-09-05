@@ -193,7 +193,7 @@ chiamano i repository, e nessuna query Supabase vive fuori da `lib/db`.
 |---|---|
 | M1 Foundation | completato — schema applicato, RLS verificata, login funzionante |
 | M2 Core dati (Inbox, Task, Progetti, Obiettivi, Finanze) | completato |
-| M3 Motore AI + Command Bar | da fare |
+| M3 Motore AI + Command Bar | completato — manca solo la chiave per la chiamata live |
 | M4 Telegram | da fare — **fine MVP** |
 | M5 Calendario, Abitudini, Journal, Persone, Time tracking | da fare |
 | M6 Automazioni, review, insight | da fare |
