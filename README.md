@@ -132,12 +132,25 @@ Ollama in locale.
 
 ### Scheduler
 
-Il tick vive in `.github/workflows/cron-tick.yml` e chiama
-`POST /api/cron/tick` ogni 5 minuti. Servono due **repository secrets**:
-`APP_URL` e `CRON_SECRET` (lo stesso valore configurato su Vercel).
+Il sistema espone un solo endpoint, `POST /api/cron/tick`, protetto da
+`Authorization: Bearer $CRON_SECRET`. Chi lo chiama è deliberatamente
+sostituibile, ed è stato sostituito una volta.
 
-L'endpoint è idempotente e recupera tutto ciò che è scaduto dall'ultima
-esecuzione: un tick saltato o in ritardo non perde nulla.
+**Chi lo chiama davvero: [cron-job.org](https://cron-job.org)**, ogni 5 minuti,
+con il metodo POST e l'header `Authorization`. Gratuito, e puntuale: misurato in
+produzione, un promemoria previsto per le 21:05:00 è partito alle 21:05:16.
+
+**GitHub Actions** (`.github/workflows/cron-tick.yml`) resta come rete di
+sicurezza, con i secret `APP_URL` e `CRON_SECRET`. Era la scelta iniziale, ed è
+stata la scelta sbagliata: i suoi cron sono dichiaratamente "best effort" e su
+un repository tranquillo vengono diradati fino a **una esecuzione ogni tre ore**
+invece delle dodici l'ora richieste. Per un sistema il cui senso è ricordarti le
+cose all'ora giusta, non è un dettaglio. Chiamare il tick due volte non fa
+danni, quindi i due convivono.
+
+L'endpoint è idempotente e lavora su ciò che è **scaduto**, guardando sei ore
+indietro oltre che quarantotto avanti: un tick saltato o in ritardo non perde
+nulla.
 
 ## Vocali e foto
 
