@@ -50,6 +50,16 @@ export type TickDeps = {
   /** Null when Telegram is unconfigured: scheduling still runs, delivery waits. */
   client: TelegramClient | null
   now?: Date
+  /**
+   * Restricts the whole tick to one account. Production never passes it: this
+   * is a system-wide job and works across everyone.
+   *
+   * It exists because the integration tests run against the real project, and
+   * a job with no owner filter happily scheduled and "delivered" the real
+   * account's reminders into a test double - marking them sent, so they never
+   * arrived anywhere. A test suite must not be able to eat a real reminder.
+   */
+  onlyUserId?: string
 }
 
 export type TickReport = {
@@ -62,9 +72,11 @@ export type TickReport = {
 export async function runTick(deps: TickDeps): Promise<TickReport> {
   const now = deps.now ?? new Date()
 
-  const scheduled = await scheduleReminders(deps.db, now)
-  const automations = await runDueAutomations(deps.db, now)
-  const { delivered, failed } = await deliverDue(deps.db, deps.client, now)
+  const scope = deps.onlyUserId
+
+  const scheduled = await scheduleReminders(deps.db, now, scope)
+  const automations = await runDueAutomations(deps.db, now, scope)
+  const { delivered, failed } = await deliverDue(deps.db, deps.client, now, scope)
 
   return { scheduled, delivered, failed, automations }
 }
@@ -80,24 +92,30 @@ type NotificationRow = Row<'notifications'>
  * before its moment arrives - which is what makes a late tick harmless, and
  * what lets the reminder survive being edited or cancelled.
  */
-async function scheduleReminders(db: Db, now: Date): Promise<number> {
+async function scheduleReminders(db: Db, now: Date, scope?: string): Promise<number> {
   const horizon = new Date(now.getTime() + SCHEDULING_HORIZON_HOURS * 3600_000).toISOString()
   const graceStart = new Date(now.getTime() - TASK_GRACE_HOURS * 3600_000).toISOString()
 
   const [{ data: events }, { data: tasks }, { data: existing }] = await Promise.all([
-    db
-      .from('events')
-      .select('id, user_id, title, starts_at, location')
-      .gte('starts_at', now.toISOString())
-      .lt('starts_at', horizon),
-    db
-      .from('tasks')
-      .select('id, user_id, title, due_at')
-      .in('status', ['inbox', 'todo', 'doing', 'blocked'])
-      .not('due_at', 'is', null)
-      .gte('due_at', graceStart)
-      .lt('due_at', horizon),
-    db.from('notifications').select('entity_type, entity_id').eq('kind', 'reminder'),
+    onlyFor(
+      db
+        .from('events')
+        .select('id, user_id, title, starts_at, location')
+        .gte('starts_at', now.toISOString())
+        .lt('starts_at', horizon),
+      scope,
+    ),
+    onlyFor(
+      db
+        .from('tasks')
+        .select('id, user_id, title, due_at')
+        .in('status', ['inbox', 'todo', 'doing', 'blocked'])
+        .not('due_at', 'is', null)
+        .gte('due_at', graceStart)
+        .lt('due_at', horizon),
+      scope,
+    ),
+    onlyFor(db.from('notifications').select('entity_type, entity_id').eq('kind', 'reminder'), scope),
   ])
 
   // One reminder per thing, ever. Cheaper and clearer than a unique index that
@@ -168,14 +186,18 @@ async function deliverDue(
   db: Db,
   client: TelegramClient | null,
   now: Date,
+  scope?: string,
 ): Promise<{ delivered: number; failed: number }> {
-  const { data: due, error } = await db
-    .from('notifications')
-    .select('*')
-    .eq('status', 'pending')
-    .lte('scheduled_at', now.toISOString())
-    .order('scheduled_at', { ascending: true })
-    .limit(50)
+  const { data: due, error } = await onlyFor(
+    db
+      .from('notifications')
+      .select('*')
+      .eq('status', 'pending')
+      .lte('scheduled_at', now.toISOString())
+      .order('scheduled_at', { ascending: true })
+      .limit(50),
+    scope,
+  )
 
   if (error) {
     console.error('[tick] lettura delle notifiche non riuscita', error)
@@ -266,12 +288,15 @@ async function chatIdsByUser(db: Db, userIds: string[]): Promise<Map<string, num
  * delivery path, retry behaviour and audit apply to a morning briefing as to a
  * reminder.
  */
-async function runDueAutomations(db: Db, now: Date): Promise<number> {
-  const { data: rules } = await db
-    .from('automation_rules')
-    .select('*')
-    .eq('enabled', true)
-    .lte('next_run_at', now.toISOString())
+async function runDueAutomations(db: Db, now: Date, scope?: string): Promise<number> {
+  const { data: rules } = await onlyFor(
+    db
+      .from('automation_rules')
+      .select('*')
+      .eq('enabled', true)
+      .lte('next_run_at', now.toISOString()),
+    scope,
+  )
 
   if (!rules || rules.length === 0) return 0
 
@@ -313,4 +338,16 @@ async function runDueAutomations(db: Db, now: Date): Promise<number> {
   }
 
   return count
+}
+
+/**
+ * Narrows a query to one owner, when one was asked for.
+ *
+ * Written as a helper rather than repeated inline because it has to be applied
+ * to every read the tick makes: one query left unscoped is enough to let a
+ * test reach into a real account, which is exactly how this came up.
+ */
+function onlyFor<T>(query: T, userId?: string): T {
+  if (!userId) return query
+  return (query as { eq(column: string, value: string): T }).eq('user_id', userId)
 }

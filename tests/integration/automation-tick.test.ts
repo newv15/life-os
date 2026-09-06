@@ -56,8 +56,11 @@ describe.skipIf(!supabaseConfigured)('cron tick', () => {
     })
   }
 
+  // Every tick in this file is scoped to the throwaway user. Without it the
+  // suite reaches into the real account: this job has no session and works
+  // across everyone by design.
   const tick = (client: RecordingClient, now = new Date()) =>
-    runTick({ db: admin, client, now })
+    runTick({ db: admin, client, now, onlyUserId: user.id })
 
   beforeAll(async () => {
     user = await createTestUser(admin, 'tick')
@@ -206,6 +209,53 @@ describe.skipIf(!supabaseConfigured)('cron tick', () => {
         .like('title', '%Cominciato un ora fa%')
 
       expect(data).toHaveLength(0)
+    })
+  })
+
+
+describe('whose reminders it touches', () => {
+    /**
+     * The tick is a system-wide job: it has no session, it uses the service
+     * role, and it deliberately works across every account. Which means these
+     * tests, run against the real project, were quietly scheduling and
+     * "delivering" the actual account's reminders into a fake client - marking
+     * them sent, so they never arrived on a real phone.
+     *
+     * That is not a hypothetical: it happened, and it swallowed a real
+     * reminder. Hence a scope the production caller never passes.
+     */
+    it('leaves other people alone when asked to work on one account', async () => {
+      const other = await createTestUser(admin, 'tick-other')
+
+      try {
+        const now = new Date()
+        await createTask(admin, other.id, {
+          title: 'Roba di qualcun altro',
+          dueAt: new Date(now.getTime() - 30 * 60_000).toISOString(),
+        })
+        await createTask(admin, user.id, {
+          title: 'Roba mia',
+          dueAt: new Date(now.getTime() - 30 * 60_000).toISOString(),
+        })
+
+        await runTick({ db: admin, client: new RecordingClient(), now, onlyUserId: user.id })
+
+        const { data: mine } = await admin
+          .from('notifications')
+          .select('title')
+          .eq('user_id', user.id)
+          .like('title', '%Roba mia%')
+
+        const { data: theirs } = await admin
+          .from('notifications')
+          .select('title')
+          .eq('user_id', other.id)
+
+        expect(mine).toHaveLength(1)
+        expect(theirs).toHaveLength(0)
+      } finally {
+        await deleteTestUser(admin, other.id)
+      }
     })
   })
 
