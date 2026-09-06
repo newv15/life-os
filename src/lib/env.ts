@@ -33,11 +33,18 @@ export function publicEnv(): PublicEnv {
 
   cachedPublicEnv = parse(
     publicSchema,
-    {
-      NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
-    },
+    // Through readOptional like every other group: a variable declared and
+    // left blank - which is what a half-filled environment panel produces -
+    // has to count as absent, or the default never applies and one empty
+    // optional field takes down every screen that needs Supabase.
+    readOptional(
+      {
+        NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+        NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+      },
+      ['NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_ANON_KEY', 'NEXT_PUBLIC_APP_URL'],
+    ),
     'Supabase',
   )
 
@@ -129,7 +136,10 @@ export function cronEnv() {
  * produces - has to count as missing, or zod happily accepts "" and the
  * failure moves to the first API call.
  */
-function readOptional(source: NodeJS.ProcessEnv, keys: string[]): Record<string, string> {
+function readOptional(
+  source: Record<string, string | undefined>,
+  keys: string[],
+): Record<string, string> {
   const result: Record<string, string> = {}
   for (const key of keys) {
     const value = source[key]

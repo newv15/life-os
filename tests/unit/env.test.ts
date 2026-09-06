@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { aiEnv, cronEnv, isAIConfigured, isTelegramConfigured, telegramEnv } from '@/lib/env'
 
 /**
@@ -20,6 +20,9 @@ const KEYS = [
   'TELEGRAM_ALLOWED_USER_IDS',
   'CRON_SECRET',
   'SUPABASE_SERVICE_ROLE_KEY',
+  'NEXT_PUBLIC_SUPABASE_URL',
+  'NEXT_PUBLIC_SUPABASE_ANON_KEY',
+  'NEXT_PUBLIC_APP_URL',
 ] as const
 
 let saved: Record<string, string | undefined>
@@ -116,5 +119,26 @@ describe('asking whether something is configured', () => {
 
     expect(isAIConfigured()).toBe(true)
     expect(isTelegramConfigured()).toBe(true)
+  })
+})
+
+describe('publicEnv', () => {
+  /**
+   * A variable that is declared but left blank is what a half-filled
+   * environment panel produces, and this one is not even read anywhere - yet
+   * blank made zod reject the whole public group, which is where the Supabase
+   * url and key live. One unused field left empty would take down every screen
+   * in the app with "Configurazione Supabase incompleta".
+   */
+  it('treats a blank app url as unset rather than breaking every Supabase client', async () => {
+    vi.resetModules()
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://esempio.supabase.co'
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon'
+    process.env.NEXT_PUBLIC_APP_URL = ''
+
+    const { publicEnv } = await import('@/lib/env')
+
+    expect(publicEnv().NEXT_PUBLIC_APP_URL).toBe('http://localhost:3000')
+    expect(publicEnv().NEXT_PUBLIC_SUPABASE_URL).toBe('https://esempio.supabase.co')
   })
 })
