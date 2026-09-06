@@ -62,6 +62,23 @@ export class OpenAICompatibleProvider implements AIProvider {
     }
   }
 
+  /**
+   * Not supported, and said plainly.
+   *
+   * The OpenAI shape does carry images, but this one adapter stands in for
+   * Groq, OpenRouter, Ollama and LM Studio, which disagree on what they accept
+   * and on how audio is passed - and several accept an image and answer as if
+   * they had looked. Refusing here means the bot can say "questo modello non
+   * legge i vocali", which is true, instead of relaying a confident
+   * description of a photo nobody read.
+   */
+  async describeMedia(): Promise<never> {
+    throw new AIProviderError(
+      'Questo modello non legge file: per vocali e foto serve un provider che li supporti, come Gemini.',
+      this.name,
+    )
+  }
+
   async generateText(request: {
     messages: AIMessage[]
     maxOutputTokens?: number

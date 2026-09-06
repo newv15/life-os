@@ -17,6 +17,16 @@ import { pruneOldUpdates } from '@/lib/telegram/webhook'
  * Runs with the service role because there is no session here: the work is
  * across all users, and each row carries its own owner.
  */
+/**
+ * Longer than the default, because one tick can deliver a backlog of reminders, each of
+ * them a round trip to Telegram.
+ *
+ * Vercel cuts a function off at its limit with no warning to the caller, and
+ * Telegram reads a dead connection as a delivery failure - so it redelivers,
+ * and the work that did finish happens again.
+ */
+export const maxDuration = 60
+
 export async function POST(request: NextRequest) {
   let secret: string
   try {

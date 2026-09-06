@@ -30,13 +30,30 @@ export type TelegramDeps = {
   allowedUserIds: bigint[]
 }
 
+/** A file as Telegram announces it, before anything is fetched. */
+type TelegramFile = { file_id: string; file_size?: number; mime_type?: string }
+
 export type TelegramUpdate = {
   update_id: number
   message?: {
     message_id: number
     from?: { id: number; first_name?: string }
-    chat: { id: number }
+    chat: { id: number; type?: string }
     text?: string
+    /** What was written under a photo, which is an instruction, not a label. */
+    caption?: string
+    voice?: TelegramFile & { duration?: number }
+    /** The same picture in several sizes, smallest first. */
+    photo?: TelegramFile[]
+    sticker?: TelegramFile
+    document?: TelegramFile
+    video?: TelegramFile
+    video_note?: TelegramFile
+    audio?: TelegramFile
+    animation?: TelegramFile
+    location?: unknown
+    contact?: unknown
+    poll?: unknown
   }
   callback_query?: {
     id: string
@@ -51,6 +68,10 @@ export type UpdateOutcome =
   | 'duplicate'
   | 'not_allowed'
   | 'not_linked'
+  /** A kind of message the bot does not handle, and said so. */
+  | 'unsupported'
+  /** A voice note or photo that arrived but could not be made out. */
+  | 'unreadable'
   | 'ignored'
 
 export async function handleTelegramUpdate(
@@ -62,9 +83,10 @@ export async function handleTelegramUpdate(
   if (await alreadyProcessed(deps.db, update.update_id)) return 'duplicate'
 
   if (update.callback_query) return handleCallback(deps, update.callback_query)
-  if (update.message?.text) return handleMessage(deps, update.message)
+  if (update.message) return handleMessage(deps, update.message)
 
-  // Photos, stickers, joins: nothing to do, but still a 200 so Telegram stops.
+  // Edits, joins, channel posts: nothing to do, but still a 200 so Telegram
+  // stops redelivering.
   return 'ignored'
 }
 
@@ -74,15 +96,22 @@ async function handleMessage(
 ): Promise<UpdateOutcome> {
   const from = message.from
   const chatId = message.chat.id
-  const text = message.text!.trim()
 
   if (!from) return 'ignored'
+
+  // Only a private conversation. Added to a group, the bot would otherwise
+  // answer every join notice and read every message in it.
+  if (message.chat.type && message.chat.type !== 'private') return 'ignored'
+
+  const content = readContent(message)
+  if (content.kind === 'nothing') return 'ignored'
 
   // A second barrier in front of the link, for when a bot token leaks: an id
   // not on the list is answered with nothing at all.
   if (!isAllowed(deps.allowedUserIds, from.id)) return 'not_allowed'
 
-  const command = parseCommand(text)
+  const text = content.kind === 'text' ? content.text : null
+  const command = text ? parseCommand(text) : null
   const userId = await resolveTelegramUser(deps.db, from.id)
 
   // /link and /start have to work before there is an account to work with -
@@ -103,6 +132,16 @@ async function handleMessage(
     return 'not_linked'
   }
 
+  if (content.kind === 'unsupported') {
+    // Saying nothing is indistinguishable from being broken, and the person
+    // spends the next minute wondering which it is.
+    await deps.client.sendMessage(
+      chatId,
+      `Per ora non gestisco ${content.label}. Scrivimi, mandami un vocale o una foto.`,
+    )
+    return 'unsupported'
+  }
+
   await deps.client.sendTyping(chatId)
 
   if (command) {
@@ -115,13 +154,24 @@ async function handleMessage(
     // speech than to a typo, and refusing it would be pedantic.
   }
 
+  // A voice note or a photo becomes words here, and from this line on the rest
+  // of the system cannot tell how the message arrived.
+  let prompt: string
+  if (content.kind === 'text') {
+    prompt = content.text
+  } else {
+    const understood = await understandMedia(deps, chatId, content)
+    if (understood === null) return 'unreadable'
+    prompt = understood
+  }
+
   try {
     const result = await handleUserMessage({
       db: deps.db,
       userId,
       provider: deps.createProvider(),
       channel: 'telegram',
-      message: text,
+      message: prompt,
       telegramChatId: chatId,
     })
 
@@ -146,6 +196,154 @@ async function handleMessage(
   }
 
   return 'processed'
+}
+
+// --- What arrived ------------------------------------------------------------
+
+/** What the person actually sent, once the shape of the update is read. */
+type MessageContent =
+  | { kind: 'text'; text: string }
+  | { kind: 'voice'; fileId: string; mimeType: string; caption?: string }
+  | { kind: 'photo'; fileId: string; mimeType: string; caption?: string }
+  | { kind: 'unsupported'; label: string }
+  | { kind: 'nothing' }
+
+/**
+ * The kinds that get a straight answer rather than silence.
+ *
+ * Named one by one instead of catching everything that is not text: a message
+ * carrying nothing recognisable is usually Telegram's own housekeeping, and
+ * replying to that would be noise. This list is things a person deliberately
+ * sent.
+ */
+const UNSUPPORTED_KINDS: { field: keyof NonNullable<TelegramUpdate['message']>; label: string }[] = [
+  { field: 'sticker', label: 'gli adesivi' },
+  { field: 'document', label: 'i file allegati' },
+  { field: 'video', label: 'i video' },
+  { field: 'video_note', label: 'i videomessaggi' },
+  { field: 'audio', label: 'i file audio' },
+  { field: 'animation', label: 'le GIF' },
+  { field: 'location', label: 'le posizioni' },
+  { field: 'contact', label: 'i contatti' },
+  { field: 'poll', label: 'i sondaggi' },
+]
+
+function readContent(message: NonNullable<TelegramUpdate['message']>): MessageContent {
+  const text = message.text?.trim()
+  if (text) return { kind: 'text', text }
+
+  const caption = message.caption?.trim() || undefined
+
+  if (message.voice) {
+    return {
+      kind: 'voice',
+      fileId: message.voice.file_id,
+      // Telegram records voice notes as OGG/Opus; the field is trusted when
+      // present because it is what the model will be told.
+      mimeType: message.voice.mime_type ?? 'audio/ogg',
+      caption,
+    }
+  }
+
+  if (message.photo && message.photo.length > 0) {
+    // The largest size, not the last entry: the order is documented as
+    // ascending, but on the smallest one no receipt is legible, and that is
+    // too important to leave to a convention.
+    const largest = message.photo.reduce((biggest, candidate) =>
+      (candidate.file_size ?? 0) > (biggest.file_size ?? 0) ? candidate : biggest,
+    )
+
+    return { kind: 'photo', fileId: largest.file_id, mimeType: 'image/jpeg', caption }
+  }
+
+  const unsupported = UNSUPPORTED_KINDS.find((entry) => message[entry.field] !== undefined)
+  if (unsupported) return { kind: 'unsupported', label: unsupported.label }
+
+  return { kind: 'nothing' }
+}
+
+// --- Turning a file into words -----------------------------------------------
+
+const VOICE_PROMPT =
+  'Trascrivi questo audio in italiano, parola per parola, senza riassumere e senza aggiungere ' +
+  'niente di tuo. Rispondi soltanto con la trascrizione. Se non si capisce quasi nulla, ' +
+  'rispondi esattamente: INCOMPRENSIBILE.'
+
+const PHOTO_PROMPT =
+  "Guarda l'immagine e riporta in italiano quello che serve per agire senza averla vista.\n" +
+  '- Se è uno scontrino o una ricevuta: importo totale, esercente, data e le voci principali.\n' +
+  '- Se contiene testo scritto a mano o stampato: trascrivilo.\n' +
+  '- Se è un documento o una schermata: scadenze, importi, nomi e di che cosa si tratta.\n' +
+  '- Altrimenti: una riga su cosa si vede.\n' +
+  'Non inventare niente: quello che non si legge, dillo.'
+
+/** The model refuses out loud rather than guessing; this is that refusal. */
+const UNREADABLE = /^incomprensibile/i
+
+/**
+ * Reads a voice note or a photo, and shows what it made of it.
+ *
+ * The reading is echoed before the assistant acts on it, and on purpose: a
+ * transcription you only see underneath the action is one you cannot catch in
+ * time. Getting "quaranta" for "quattordici" has to be visible.
+ *
+ * Returns null when there is nothing to act on - the person has already been
+ * told why, and nothing is parked in the inbox because nothing was lost: the
+ * voice note is still sitting in their Telegram chat.
+ */
+async function understandMedia(
+  deps: TelegramDeps,
+  chatId: number,
+  content: Extract<MessageContent, { kind: 'voice' | 'photo' }>,
+): Promise<string | null> {
+  const file = await deps.client.downloadFile(content.fileId)
+
+  if (!file.ok) {
+    await deps.client.sendMessage(
+      chatId,
+      file.reason === 'too_large'
+        ? 'Questo file è troppo grande perché riesca a leggerlo. Un vocale più corto, o una foto più leggera, e ci siamo.'
+        : 'Non sono riuscito a scaricare il file da Telegram. Riprova fra un momento.',
+    )
+    return null
+  }
+
+  const instruction =
+    (content.kind === 'voice' ? VOICE_PROMPT : PHOTO_PROMPT) +
+    (content.caption ? `\n\nChi l'ha mandata l'ha accompagnata con: «${content.caption}»` : '')
+
+  try {
+    const { text } = await deps.createProvider().describeMedia({
+      media: { data: file.base64, mimeType: content.mimeType },
+      prompt: instruction,
+      maxOutputTokens: content.kind === 'voice' ? 1024 : 1536,
+    })
+
+    if (UNREADABLE.test(text.trim())) throw new Error('il modello non ha capito il file')
+
+    await deps.client.sendMessage(chatId, echoOfMedia(content.kind, text))
+    return text
+  } catch (error) {
+    console.error('[telegram] lettura del file non riuscita', error)
+    await deps.client.sendMessage(
+      chatId,
+      content.kind === 'voice'
+        ? 'Non sono riuscito a capire il vocale. Riprova, oppure scrivimelo.'
+        : "Non sono riuscito a leggere la foto. Riprova, oppure scrivimi cosa c'è.",
+    )
+    return null
+  }
+}
+
+/** Long enough to check, short enough not to bury the answer that follows. */
+const ECHO_LIMIT = 600
+
+function echoOfMedia(kind: 'voice' | 'photo', text: string): string {
+  const trimmed = text.length > ECHO_LIMIT ? `${text.slice(0, ECHO_LIMIT)}…` : text
+
+  return kind === 'voice'
+    ? `<i>Ho sentito:</i> «${escapeHtml(trimmed)}»`
+    : `<i>Nella foto leggo:</i> ${escapeHtml(trimmed)}`
 }
 
 async function handleLink(

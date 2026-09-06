@@ -1,6 +1,8 @@
 import type {
+  AIMedia,
   AIMessage,
   AIProvider,
+  AITextResult,
   AIToolDefinition,
   AIToolResult,
 } from '@/lib/ai/provider'
@@ -35,12 +37,30 @@ export class ScriptedProvider implements AIProvider {
     messages: AIMessage[]
     tools: AIToolDefinition[]
   }): Promise<AIToolResult> {
-    this.requests.push({ messages: request.messages, tools: request.tools })
+    // Copied, not referenced: the service appends to the same array between
+    // rounds, so keeping the reference would make every recorded request show
+    // the last one's messages.
+    this.requests.push({ messages: [...request.messages], tools: request.tools })
 
     const next = this.steps.shift()
     if (!next) return { text: 'Non ho altro da aggiungere.', toolCalls: [] }
     if (next instanceof Error) throw next
     return next
+  }
+
+  /** What the model claims to have heard or seen. */
+  transcript = 'trascrizione di prova'
+
+  /** Set to script a model that cannot make out the file. */
+  mediaError: Error | null = null
+
+  /** Every prompt describeMedia was asked, so tests can check the caption got through. */
+  readonly mediaPrompts: string[] = []
+
+  async describeMedia(request: { media: AIMedia; prompt: string }): Promise<AITextResult> {
+    this.mediaPrompts.push(request.prompt)
+    if (this.mediaError) throw this.mediaError
+    return { text: this.transcript }
   }
 
   async generateText(): Promise<{ text: string }> {
@@ -57,6 +77,10 @@ export class BrokenProvider implements AIProvider {
   readonly name = 'broken'
 
   async executeToolCalling(): Promise<never> {
+    throw new AIProviderError('rate limit superato', 'broken')
+  }
+
+  async describeMedia(): Promise<never> {
     throw new AIProviderError('rate limit superato', 'broken')
   }
 

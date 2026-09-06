@@ -42,6 +42,19 @@ export type AIToolDefinition = {
   parameters: Record<string, unknown>
 }
 
+/**
+ * A file for the model to read: audio, an image.
+ *
+ * Base64 because that is the wire format every provider expects, and because
+ * these never touch disk - the bytes arrive from Telegram, go to the model,
+ * and are gone. What is kept is what the model made of them.
+ */
+export type AIMedia = {
+  data: string
+  /** As Telegram reported it: audio/ogg, image/jpeg. */
+  mimeType: string
+}
+
 export type AIUsage = { inputTokens?: number; outputTokens?: number }
 
 export type AITextResult = { text: string; usage?: AIUsage }
@@ -74,6 +87,26 @@ export interface AIProvider {
     tools: AIToolDefinition[]
     maxOutputTokens?: number
   }): Promise<AIToolResult>
+
+  /**
+   * Turns a file into words, so that everything above this layer keeps dealing
+   * in text.
+   *
+   * Deliberately separate from executeToolCalling rather than an attachment on
+   * a message. Two reasons, one practical and one about trust: providers do not
+   * agree on whether audio and function calling may travel together, and a
+   * transcription the person never sees is a transcription they cannot correct
+   * before it becomes an expense.
+   *
+   * Required on the interface, not optional: an adapter that cannot read files
+   * has to say so out loud, which is a sentence the bot can repeat.
+   */
+  describeMedia(request: {
+    media: AIMedia
+    /** What to make of it - transcribe, read the receipt, list the tasks. */
+    prompt: string
+    maxOutputTokens?: number
+  }): Promise<AITextResult>
 }
 
 /**

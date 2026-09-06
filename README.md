@@ -139,6 +139,27 @@ Il tick vive in `.github/workflows/cron-tick.yml` e chiama
 L'endpoint è idempotente e recupera tutto ciò che è scaduto dall'ultima
 esecuzione: un tick saltato o in ritardo non perde nulla.
 
+## Vocali e foto
+
+Un vocale o una foto diventano **parole** prima di toccare qualsiasi altra cosa: il
+file viene scaricato da Telegram, il modello lo legge, e da quel punto in poi il
+sistema non sa più da dove arrivava il messaggio — stessi strumenti, stessa
+memoria, stesso log.
+
+Sono due passaggi invece di uno, e non per caso. Google documenta l'audio
+inline (OGG/Opus compreso, 32 token al secondo) ma **non** dice se audio e
+chiamata di strumenti possano viaggiare insieme; e soprattutto: quello che il
+modello ha capito viene **mostrato prima** di agire. Una trascrizione che vedi
+solo sotto all'azione è una trascrizione che non fai in tempo a correggere, e
+«quaranta» al posto di «quattordici» diventa una spesa sbagliata.
+
+Per le foto il prompt copre scontrini (importo, esercente, data), scrittura a
+mano e documenti; la didascalia che scrivi vale come istruzione. Niente viene
+conservato: il file passa, se ne ricava del testo, e i byte finiscono lì.
+
+Quello che il bot non sa gestire — adesivi, video, allegati — riceve una
+risposta che lo dice. Un bot che tace è indistinguibile da un bot rotto.
+
 ## Cercare, e portarsi via i dati
 
 **⌘K / Ctrl+K** apre una sola casella che fa due cose: cerca in tutto ciò che hai

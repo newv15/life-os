@@ -23,6 +23,16 @@ import { handleTelegramUpdate, type TelegramUpdate } from '@/lib/telegram/webhoo
  * sender is identified by their Telegram id and nothing else, which is exactly
  * why that lookup happens before anything is read or written.
  */
+/**
+ * Longer than the default, because a voice note is two calls to the model: one to hear it,
+ * one to act on it.
+ *
+ * Vercel cuts a function off at its limit with no warning to the caller, and
+ * Telegram reads a dead connection as a delivery failure - so it redelivers,
+ * and the work that did finish happens again.
+ */
+export const maxDuration = 60
+
 export async function POST(request: NextRequest) {
   let env: ReturnType<typeof telegramEnv>
   try {

@@ -1,6 +1,7 @@
 import { z, type ZodType } from 'zod'
 import {
   AIProviderError,
+  type AIMedia,
   type AIMessage,
   type AIProvider,
   type AIToolDefinition,
@@ -48,6 +49,43 @@ export class GeminiProvider implements AIProvider {
     }
 
     return fromGeminiResponse(await this.post('generateContent', body))
+  }
+
+  /**
+   * Reads a file and answers in words.
+   *
+   * Inline data rather than the Files API: an upload would mean a second round
+   * trip and a handle to clean up, for bytes that are used once and thrown
+   * away. Gemini accepts inline media up to a 20 MB request, which is well past
+   * anything Telegram sends from a phone.
+   *
+   * Temperature 0: this is reading, not writing. A transcription that varies
+   * between attempts is a transcription you cannot trust.
+   */
+  async describeMedia(request: {
+    media: AIMedia
+    prompt: string
+    maxOutputTokens?: number
+  }): Promise<{ text: string }> {
+    const response = await this.post('generateContent', {
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            { inlineData: { mimeType: request.media.mimeType, data: request.media.data } },
+            { text: request.prompt },
+          ],
+        },
+      ],
+      generationConfig: { maxOutputTokens: request.maxOutputTokens ?? 1024, temperature: 0 },
+    })
+
+    const text = fromGeminiResponse(response).text?.trim() ?? ''
+    // An empty answer is a failure with a friendly face: the caller would go on
+    // to feed nothing to the model as if the person had said nothing.
+    if (!text) throw new AIProviderError('Il modello non ha ricavato nulla dal file', this.name)
+
+    return { text }
   }
 
   async generateText(request: {

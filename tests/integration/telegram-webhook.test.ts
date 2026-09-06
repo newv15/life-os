@@ -8,8 +8,9 @@ import {
   type TestUser,
 } from '../helpers/supabase'
 import { ScriptedProvider } from '../helpers/scripted-provider'
+import { AIProviderError } from '@/lib/ai/provider'
 import { handleTelegramUpdate, type TelegramDeps, type TelegramUpdate } from '@/lib/telegram/webhook'
-import type { InlineButton, TelegramClient } from '@/lib/telegram/api'
+import type { FileDownload, InlineButton, TelegramClient } from '@/lib/telegram/api'
 import { createLinkCode } from '@/lib/services/telegram-link'
 import { listTasks } from '@/lib/services/tasks'
 import { listInboxItems } from '@/lib/services/inbox'
@@ -30,6 +31,15 @@ class RecordingClient implements TelegramClient {
   readonly typing: number[] = []
   readonly callbacksAnswered: string[] = []
   readonly buttonsCleared: number[] = []
+  /** Which file ids were actually fetched - the size chosen matters. */
+  readonly downloaded: string[] = []
+  /** Scriptable, so a test can play a file that is too big to send. */
+  download: FileDownload = { ok: true, base64: 'ZmFrZQ==' }
+
+  async downloadFile(fileId: string) {
+    this.downloaded.push(fileId)
+    return this.download
+  }
 
   async sendMessage(chatId: number, text: string, buttons?: InlineButton[][]) {
     this.sent.push({ chatId, text, buttons })
@@ -56,6 +66,35 @@ const message = (
 ): TelegramUpdate => ({
   update_id: updateId,
   message: { message_id: 1, from: { id: telegramUserId }, chat: { id: chatId }, text },
+})
+
+const voiceMessage = (telegramUserId: number, chatId: number): TelegramUpdate => ({
+  update_id: nextUpdateId(),
+  message: {
+    message_id: 1,
+    from: { id: telegramUserId },
+    chat: { id: chatId },
+    voice: { file_id: 'vocale', duration: 4, mime_type: 'audio/ogg', file_size: 9_000 },
+  },
+})
+
+const photoMessage = (
+  telegramUserId: number,
+  chatId: number,
+  caption?: string,
+): TelegramUpdate => ({
+  update_id: nextUpdateId(),
+  message: {
+    message_id: 1,
+    from: { id: telegramUserId },
+    chat: { id: chatId },
+    // Telegram sends the same photo in several sizes, smallest first.
+    photo: [
+      { file_id: 'photo-piccola', file_size: 900 },
+      { file_id: 'photo-grande', file_size: 90_000 },
+    ],
+    caption,
+  },
 })
 
 describe.skipIf(!supabaseConfigured)('telegram webhook', () => {
@@ -202,7 +241,100 @@ describe.skipIf(!supabaseConfigured)('telegram webhook', () => {
 
       expect(outcome).toBe('ignored')
     })
+
+    describe('vocali e foto', () => {
+      it('turns a voice note into a message, and says what it heard before acting', async () => {
+        const provider = new ScriptedProvider([
+          { toolCalls: [{ id: '1', name: 'create_task', arguments: { title: 'Comprare il pane' } }] },
+          { text: 'Fatto.', toolCalls: [] },
+        ])
+        provider.transcript = 'devo comprare il pane'
+        const d = deps(provider)
+        const client = d.client as RecordingClient
+
+        const outcome = await handleTelegramUpdate(d, voiceMessage(telegramId, chatId))
+
+        expect(outcome).toBe('processed')
+        // What it heard arrives first, while the model is still working: a
+        // transcription you only see after the action is one you cannot catch
+        // in time.
+        expect(client.sent[0].text).toContain('devo comprare il pane')
+        expect(client.sent[1].text).toBe('Fatto.')
+
+        // And the model was handed the words, not the audio.
+        expect(provider.requests[0].messages.at(-1)?.content).toBe('devo comprare il pane')
+
+        const tasks = await listTasks(admin, user.id)
+        expect(tasks.map((t) => t.title)).toContain('Comprare il pane')
+      })
+
+      it('reads a photo, taking the caption as the instruction', async () => {
+        const provider = new ScriptedProvider([{ text: 'Registrata.', toolCalls: [] }])
+        provider.transcript = 'Scontrino Conad, 35,20 euro, 4 settembre'
+        const d = deps(provider)
+
+        await handleTelegramUpdate(d, photoMessage(telegramId, chatId, 'questa è la spesa'))
+
+        expect(provider.mediaPrompts[0]).toContain('questa è la spesa')
+        expect(provider.requests[0].messages.at(-1)?.content).toContain('Scontrino Conad')
+      })
+
+      it('asks for the largest photo, not the thumbnail', async () => {
+        // Telegram offers the same picture in several sizes. On the smallest,
+        // no receipt is legible.
+        const d = deps(new ScriptedProvider([{ text: 'ok', toolCalls: [] }]))
+        const client = d.client as RecordingClient
+
+        await handleTelegramUpdate(d, photoMessage(telegramId, chatId))
+
+        expect(client.downloaded).toEqual(['photo-grande'])
+      })
+
+      it('says it could not make out the audio instead of inventing something', async () => {
+        const provider = new ScriptedProvider([{ text: 'non dovrei essere chiamato', toolCalls: [] }])
+        provider.mediaError = new AIProviderError('audio illeggibile', 'scripted')
+        const d = deps(provider)
+        const client = d.client as RecordingClient
+
+        await handleTelegramUpdate(d, voiceMessage(telegramId, chatId))
+
+        expect(client.sent[0].text).toMatch(/non .*(capito|riuscito|sentito)/i)
+        // Nothing reached the model: guessing at an unheard message is how a
+        // system records a payment nobody made.
+        expect(provider.requests).toHaveLength(0)
+      })
+
+      it('refuses a file too big to send, and says why', async () => {
+        const d = deps()
+        const client = d.client as RecordingClient
+        client.download = { ok: false, reason: 'too_large' }
+
+        await handleTelegramUpdate(d, voiceMessage(telegramId, chatId))
+
+        expect(client.sent[0].text).toMatch(/troppo grande/i)
+      })
+
+      it('names what it cannot handle rather than going quiet', async () => {
+        const d = deps()
+        const client = d.client as RecordingClient
+
+        const outcome = await handleTelegramUpdate(d, {
+          update_id: nextUpdateId(),
+          message: {
+            message_id: 9,
+            from: { id: telegramId },
+            chat: { id: chatId },
+            sticker: { file_id: 'adesivo' },
+          },
+        })
+
+        // Silence is indistinguishable from being broken.
+        expect(outcome).toBe('unsupported')
+        expect(client.sent[0].text).toMatch(/adesivi|non so|non gestisco|non riesco/i)
+      })
+    })
   })
+
 
   describe('duplicate deliveries', () => {
     it('does the work once, however many times Telegram retries', async () => {
@@ -295,6 +427,9 @@ describe.skipIf(!supabaseConfigured)('telegram webhook', () => {
           name: 'broken',
           async executeToolCalling(): Promise<never> {
             const { AIProviderError } = await import('@/lib/ai/provider')
+            throw new AIProviderError('giù', 'broken')
+          },
+          async describeMedia(): Promise<never> {
             throw new AIProviderError('giù', 'broken')
           },
           async generateText(): Promise<never> {

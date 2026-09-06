@@ -26,6 +26,11 @@ class RecordingClient implements TelegramClient {
   readonly sent: { chatId: number; text: string }[] = []
   shouldFail = false
 
+  async downloadFile() {
+    // The scheduler only ever sends; nothing here reads a file.
+    return { ok: false, reason: 'unavailable' } as const
+  }
+
   async sendMessage(chatId: number, text: string) {
     if (this.shouldFail) throw new Error('Telegram non raggiungibile')
     this.sent.push({ chatId, text })
