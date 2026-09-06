@@ -123,7 +123,7 @@ npm run dev
 ```env
 AI_PROVIDER=gemini
 AI_API_KEY=...
-AI_MODEL=gemini-3.6-flash
+AI_MODEL=gemini-3.5-flash-lite
 ```
 
 Cambiare modello o fornitore è una modifica di ambiente, non di codice:
