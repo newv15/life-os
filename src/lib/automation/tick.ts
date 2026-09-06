@@ -11,8 +11,9 @@ import type { Db, Row } from '@/lib/db/types'
  *
  *  - It is idempotent. The same minute can be delivered twice, and a reminder
  *    sent twice is more annoying than one sent late.
- *  - It catches up. It works from what is overdue rather than from what
- *    happened since the last run, so a delayed or skipped tick loses nothing.
+ *  - It catches up. It works from what is due rather than from what happened
+ *    since the last run, and looks a few hours into the past as well as ahead,
+ *    so a delayed or skipped tick does not turn into a dropped reminder.
  *
  * Both matter because the scheduler is GitHub Actions, which is free and
  * therefore approximate: runs drift by minutes and occasionally do not happen.
@@ -23,6 +24,23 @@ const EVENT_LEAD_MINUTES = 30
 
 /** How far ahead to look when creating reminders. */
 const SCHEDULING_HORIZON_HOURS = 48
+
+/**
+ * How far back to look for deadlines that came due while nothing was running.
+ *
+ * Without this the scheduler only ever looked forward, so every deadline that
+ * passed during an outage was dropped in silence - and since the scheduler is
+ * free, and therefore occasionally absent for hours, that is not a rare case.
+ * The first run in production skipped a reminder exactly this way.
+ *
+ * Bounded, though: catching up is not the same as never letting go. Six hours
+ * keeps a deadline that passed this morning worth mentioning, and stops the
+ * first run after a long silence from arriving as a wall of stale messages.
+ *
+ * Appointments deliberately get no such window. "Tra poco" about something
+ * that started an hour ago is not late, it is wrong.
+ */
+const TASK_GRACE_HOURS = 6
 
 /** After this many failures a message is dead rather than retried forever. */
 const MAX_ATTEMPTS = 5
@@ -64,6 +82,7 @@ type NotificationRow = Row<'notifications'>
  */
 async function scheduleReminders(db: Db, now: Date): Promise<number> {
   const horizon = new Date(now.getTime() + SCHEDULING_HORIZON_HOURS * 3600_000).toISOString()
+  const graceStart = new Date(now.getTime() - TASK_GRACE_HOURS * 3600_000).toISOString()
 
   const [{ data: events }, { data: tasks }, { data: existing }] = await Promise.all([
     db
@@ -76,7 +95,7 @@ async function scheduleReminders(db: Db, now: Date): Promise<number> {
       .select('id, user_id, title, due_at')
       .in('status', ['inbox', 'todo', 'doing', 'blocked'])
       .not('due_at', 'is', null)
-      .gte('due_at', now.toISOString())
+      .gte('due_at', graceStart)
       .lt('due_at', horizon),
     db.from('notifications').select('entity_type, entity_id').eq('kind', 'reminder'),
   ])

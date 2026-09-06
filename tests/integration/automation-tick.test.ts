@@ -143,7 +143,72 @@ describe.skipIf(!supabaseConfigured)('cron tick', () => {
       // to travel to.
       expect(Math.abs(new Date(data!.scheduled_at).getTime() - dueAt.getTime())).toBeLessThan(2000)
     })
+
+    it('still reminds about a deadline that passed while it was down', async () => {
+      // The whole reason this runs on GitHub Actions is that it is free, and
+      // the price of free is that it drifts and sometimes does not run at all.
+      // A scheduler that only ever looks forward turns its own downtime into
+      // silently dropped reminders - which is exactly what happened the first
+      // time this ran in production.
+      const now = new Date()
+      await createTask(admin, user.id, {
+        title: 'Scaduto mentre era fermo',
+        dueAt: new Date(now.getTime() - 2 * 3600_000).toISOString(),
+      })
+
+      await tick(new RecordingClient(), now)
+
+      const { data } = await admin
+        .from('notifications')
+        .select('title')
+        .eq('user_id', user.id)
+        .like('title', '%Scaduto mentre era fermo%')
+
+      expect(data).toHaveLength(1)
+    })
+
+    it('does not dig up a deadline from last week', async () => {
+      // Catching up is not the same as never letting go: a reminder days late
+      // is not a reminder, and a first run after a long silence should not
+      // arrive as a wall of messages nobody reads.
+      const now = new Date()
+      await createTask(admin, user.id, {
+        title: 'Vecchio di una settimana',
+        dueAt: new Date(now.getTime() - 7 * 86_400_000).toISOString(),
+      })
+
+      await tick(new RecordingClient(), now)
+
+      const { data } = await admin
+        .from('notifications')
+        .select('title')
+        .eq('user_id', user.id)
+        .like('title', '%Vecchio di una settimana%')
+
+      expect(data).toHaveLength(0)
+    })
+
+    it('does not announce an appointment that has already started', async () => {
+      // "Tra poco" about something that began an hour ago is worse than
+      // silence: it is wrong.
+      const now = new Date()
+      await createEvent(admin, user.id, {
+        title: 'Cominciato un ora fa',
+        startsAt: new Date(now.getTime() - 3600_000).toISOString(),
+      })
+
+      await tick(new RecordingClient(), now)
+
+      const { data } = await admin
+        .from('notifications')
+        .select('title')
+        .eq('user_id', user.id)
+        .like('title', '%Cominciato un ora fa%')
+
+      expect(data).toHaveLength(0)
+    })
   })
+
 
   describe('delivering', () => {
     it('sends what is due and marks it sent', async () => {
