@@ -237,6 +237,22 @@
   .spine-item[data-now="true"] .spine-time {
     @apply text-signal font-medium;
   }
+
+  /* The row you arrived at from search. Set by the focus handler and removed a
+     couple of seconds later: long enough to find it, short enough that it does
+     not become part of how the list looks. */
+  [data-focused="true"] {
+    @apply rounded-sm ring-2 ring-signal ring-offset-2 ring-offset-background;
+  }
+
+  /* Reachable only by keyboard, and only until it is tabbed past. */
+  .skip-link {
+    @apply sr-only;
+  }
+
+  .skip-link:focus {
+    @apply not-sr-only fixed top-3 left-3 z-50 rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

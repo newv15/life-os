@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LogOut, MoreHorizontal } from 'lucide-react'
+import { LogOut, MoreHorizontal, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { openCommandPalette } from '@/components/layout/command-palette'
 import { NAV_GROUPS, NAV_ITEMS, SETTINGS_ITEM, isActivePath } from '@/lib/navigation'
 import { signOut } from '@/app/login/actions'
 
@@ -34,6 +35,18 @@ export function BottomNav() {
             className="absolute inset-0 bg-foreground/20"
           />
           <div className="absolute inset-x-0 bottom-0 rounded-t-xl border-t border-rule bg-card px-5 pt-5 pb-8">
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false)
+                openCommandPalette()
+              }}
+              className="mb-5 flex w-full items-center gap-2 rounded-md border border-rule px-3 py-2.5 text-sm text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            >
+              <Search className="size-4 shrink-0" aria-hidden />
+              Cerca
+            </button>
+
             {NAV_GROUPS.map((group) => {
               const items = group.items.filter((item) => rest.includes(item))
               if (items.length === 0) return null

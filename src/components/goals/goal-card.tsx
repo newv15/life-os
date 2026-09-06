@@ -56,7 +56,10 @@ export function GoalCard({
   const unit = goal.metric_unit ? ` ${goal.metric_unit}` : ''
 
   return (
-    <li className={cn('group border-b border-rule py-4 last:border-b-0', pending && 'opacity-60')}>
+    <li
+      data-entity-id={goal.id}
+      className={cn('group border-b border-rule py-4 last:border-b-0', pending && 'opacity-60')}
+    >
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium leading-snug">{goal.title}</p>

@@ -20,6 +20,7 @@ import {
   listGoalsTool,
   listInboxTool,
   listProjectsTool,
+  searchGlobalTool,
   updateGoalProgressTool,
 } from '@/lib/ai/tools/planning'
 import {
@@ -82,6 +83,7 @@ const ALL_TOOLS: Tool[] = [
   captureNoteTool,
   listInboxTool,
   getTodayTool,
+  searchGlobalTool,
 ]
 
 export const TOOLS: Record<string, Tool> = Object.fromEntries(

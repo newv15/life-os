@@ -9,8 +9,10 @@ import { createProject, listProjects } from '@/lib/services/projects'
 import { captureInboxItem, listInboxItems } from '@/lib/services/inbox'
 import { getFinancialSummary, listAccounts } from '@/lib/services/finance'
 import { listTasks } from '@/lib/services/tasks'
+import { searchEverything } from '@/lib/services/search'
 import { requireMatch } from '@/lib/ai/tools/shared'
 import { monthRange } from '@/lib/utils/date'
+import type { Enums } from '@/lib/db/types'
 
 // --- Projects ----------------------------------------------------------------
 
@@ -261,6 +263,53 @@ export const getTodayTool = defineTool({
         entrateMese: summary.income,
         usciteMese: summary.expense,
         appuntiInInbox: inbox.length,
+      },
+    }
+  },
+})
+
+const KIND_LABELS: Partial<Record<Enums['entity_type'], string>> = {
+  task: 'task',
+  project: 'progetto',
+  goal: 'obiettivo',
+  event: 'appuntamento',
+  transaction: 'movimento',
+  person: 'persona',
+  inbox_item: 'appunto in inbox',
+}
+
+export const searchGlobalTool = defineTool({
+  name: 'search_global',
+  description:
+    'Cerca per parola in tutto quello che la persona ha registrato: task, progetti, obiettivi, ' +
+    'appuntamenti, movimenti, persone, appunti. Usalo quando si riferisce a qualcosa che ha già ' +
+    'nominato prima ("quel progetto del commercialista", "quanto ho speso da Marco") e non sai ' +
+    'a cosa corrisponde. Non inventare: se qui non esce nulla, quella cosa non c\'è.',
+  parameters: z.object({
+    query: z
+      .string()
+      .describe('Una o due parole chiave, non una frase intera: la ricerca è testuale.'),
+  }),
+  async execute(ctx, args) {
+    const hits = await searchEverything(ctx.db, ctx.userId, args.query, 10)
+
+    if (hits.length === 0) {
+      return {
+        summary: `Non ho trovato niente che contenga «${args.query}».`,
+        data: { risultati: [] },
+      }
+    }
+
+    return {
+      summary: hits
+        .map((hit) => `${hit.title} (${KIND_LABELS[hit.entityType] ?? hit.entityType})`)
+        .join(' · '),
+      data: {
+        risultati: hits.map((hit) => ({
+          tipo: hit.entityType,
+          id: hit.id,
+          titolo: hit.title,
+        })),
       },
     }
   },

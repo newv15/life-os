@@ -1,7 +1,9 @@
 import type { Metadata } from 'next'
 import { Check, Minus } from 'lucide-react'
 import { PageHeader } from '@/components/layout/page-header'
+import { Appearance } from '@/components/settings/appearance'
 import { Automations } from '@/components/settings/automations'
+import { DataExport } from '@/components/settings/data-export'
 import { TelegramLink } from '@/components/settings/telegram-link'
 import { createServerSupabase, requireUserId } from '@/lib/db/server'
 import { listTelegramLinks } from '@/lib/services/telegram-link'
@@ -87,6 +89,30 @@ export default async function SettingsPage() {
               '08:00',
           }))}
         />
+      </section>
+
+      <section aria-labelledby="aspetto" className="mt-10">
+        <h2 id="aspetto" className="eyebrow mb-2">
+          Aspetto
+        </h2>
+        <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
+          Di norma segue il dispositivo, così di sera è scuro senza doverlo chiedere.
+        </p>
+
+        <Appearance />
+      </section>
+
+      <section aria-labelledby="dati" className="mt-10">
+        <h2 id="dati" className="eyebrow mb-2">
+          I tuoi dati
+        </h2>
+        <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
+          Il JSON è la copia completa, valori esatti, buona per un backup. I CSV servono per
+          aprire una cosa nel foglio di calcolo: sono separati da punto e virgola e con la
+          virgola decimale, che è come Excel in italiano si aspetta di leggerli.
+        </p>
+
+        <DataExport />
       </section>
     </>
   )

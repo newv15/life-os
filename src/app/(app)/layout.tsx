@@ -1,6 +1,9 @@
+import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { CommandBar } from '@/components/ai/command-bar'
 import { BottomNav } from '@/components/layout/bottom-nav'
+import { CommandPalette } from '@/components/layout/command-palette'
+import { FocusHighlight } from '@/components/layout/focus-highlight'
 import { Sidebar } from '@/components/layout/sidebar'
 import { getCurrentUserId } from '@/lib/db/server'
 import { isAIConfigured } from '@/lib/env'
@@ -13,9 +16,15 @@ export default async function AppLayout({ children }: LayoutProps<'/'>) {
 
   return (
     <div className="flex min-h-dvh">
+      {/* First thing in the tab order: eleven navigation links before the page
+          content is a keyboard user's daily tax. */}
+      <a href="#contenuto" className="skip-link">
+        Vai al contenuto
+      </a>
+
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
-        <main className="flex-1 px-5 py-6 md:px-10 md:py-9">
+        <main id="contenuto" className="flex-1 px-5 py-6 md:px-10 md:py-9">
           <div className="mx-auto w-full max-w-4xl">
             {/* Shown only once there is a model to talk to. An input that
                 always fails is worse than no input. */}
@@ -25,6 +34,11 @@ export default async function AppLayout({ children }: LayoutProps<'/'>) {
         </main>
         <BottomNav />
       </div>
+
+      <CommandPalette />
+      <Suspense fallback={null}>
+        <FocusHighlight />
+      </Suspense>
     </div>
   )
 }

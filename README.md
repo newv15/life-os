@@ -25,7 +25,7 @@ WEB APP (Next.js)          TELEGRAM BOT
                ▼
           AI SERVICE                contesto → provider → tool loop → log
                ▼
-        TOOL REGISTRY               ~35 tool tipizzati con zod
+        TOOL REGISTRY               28 tool tipizzati con zod
                ▼
        BUSINESS LOGIC               lib/services — unico punto che scrive
                ▼
@@ -123,7 +123,7 @@ npm run dev
 ```env
 AI_PROVIDER=gemini
 AI_API_KEY=...
-AI_MODEL=gemini-2.5-flash
+AI_MODEL=gemini-3.6-flash
 ```
 
 Cambiare modello o fornitore è una modifica di ambiente, non di codice:
@@ -138,6 +138,25 @@ Il tick vive in `.github/workflows/cron-tick.yml` e chiama
 
 L'endpoint è idempotente e recupera tutto ciò che è scaduto dall'ultima
 esecuzione: un tick saltato o in ritardo non perde nulla.
+
+## Cercare, e portarsi via i dati
+
+**⌘K / Ctrl+K** apre una sola casella che fa due cose: cerca in tutto ciò che hai
+registrato — task, progetti, obiettivi, appuntamenti, movimenti, persone,
+appunti — e porta a una schermata. La ricerca è una funzione SQL,
+`global_search()`, che fa l'unione delle tabelle e le ordina per somiglianza:
+otto liste ordinate separatamente in JavaScript sarebbero più lente e
+ordinerebbero peggio. Scegliendo un risultato non si atterra sulla schermata ma
+**sulla riga**, che viene evidenziata per due secondi.
+
+Il tema segue il dispositivo, con la scelta esplicita in Impostazioni.
+
+I dati si scaricano da Impostazioni, in due formati che rispondono a due
+domande diverse: **JSON** è la copia completa con i valori esatti, per un
+backup; **CSV** serve ad aprire una tabella nel foglio di calcolo, quindi è
+separato da `;` con la virgola decimale e il BOM, che è come Excel in italiano
+si aspetta di leggere un file — con la virgola come separatore gli importi
+finirebbero letti come date.
 
 ## Deploy su Vercel
 
@@ -159,6 +178,26 @@ esecuzione: un tick saltato o in ritardo non perde nulla.
 - Il webhook verifica `X-Telegram-Bot-Api-Secret-Token` e deduplica gli
   `update_id`, così un retry di Telegram non registra due volte la stessa spesa.
 - Nessun segreto nei log, nessun analytics di terze parti, nessun tracking.
+- Header su ogni risposta (`next.config.ts`): `X-Frame-Options: DENY` e
+  `frame-ancestors 'none'` — nessuno deve poter incorniciare questa app e
+  rubare un click su un pulsante di conferma — più `nosniff`,
+  `strict-origin-when-cross-origin` e una `Permissions-Policy` che spegne
+  fotocamera, microfono, posizione e pagamenti.
+- L'export è dietro la sessione: senza cookie `/api/export` risponde 307 verso
+  il login, e usa il client con la anon key, quindi la RLS vale anche lì.
+
+Il linter di sicurezza di Supabase è pulito, con due voci lasciate aperte di
+proposito e una che tocca a te:
+
+- `telegram_updates` ha la RLS attiva **e nessuna policy**: la scrive solo il
+  webhook con la service role e nessuna sessione deve leggerla. È il
+  comportamento voluto, annotato come commento sulla tabella nella `0015`.
+- Le chiavi esterne composite risultano «senza indice di copertura». Il linter
+  ragiona su un database multi-tenant; qui ogni tabella conterrà centinaia di
+  righe, e trenta indici in più costerebbero scritture e spazio senza cambiare
+  nulla in lettura.
+- **La protezione password compromesse va accesa a mano** in Authentication →
+  Providers: è un interruttore del pannello, non una migration.
 
 L'isolamento non è un'affermazione ma un test: `tests/integration/rls-isolation.test.ts`
 crea due utenti usa-e-getta, dà dati a uno e verifica che l'altro non riesca a
@@ -180,6 +219,7 @@ src/
     telegram/     webhook, auth, comandi, notifiche
     automation/   tick, briefing, review, insights
     utils/        date (Europe/Rome), valuta, ricorrenze
+  hooks/          valori che esistono solo nel browser
 supabase/migrations/
 tests/            unit, integration, e2e
 ```
@@ -197,4 +237,4 @@ chiamano i repository, e nessuna query Supabase vive fuori da `lib/db`.
 | M4 Telegram | completato — **fine MVP**; manca solo il token del bot per la prova dal telefono |
 | M5 Calendario, Abitudini, Diario, Persone, Tempo | completato |
 | M6 Automazioni, review, insight | completato |
-| M7 Rifinitura, ⌘K, ricerca globale, export | da fare |
+| M7 Rifinitura, ⌘K, ricerca globale, export | completato — tema, palette, focus sul risultato, export, pagine di errore, header di sicurezza |

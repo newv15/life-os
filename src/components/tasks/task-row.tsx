@@ -42,6 +42,7 @@ export function TaskRow({ task, projectName }: TaskRowProps) {
 
   return (
     <li
+      data-entity-id={task.id}
       className={cn(
         'group flex items-start gap-3 border-b border-rule py-3 last:border-b-0',
         pending && 'opacity-60',

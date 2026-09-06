@@ -2,8 +2,10 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LogOut } from 'lucide-react'
+import { LogOut, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { openCommandPalette } from '@/components/layout/command-palette'
+import { useClientValue } from '@/hooks/use-client-value'
 import { NAV_GROUPS, SETTINGS_ITEM, isActivePath, type NavItem } from '@/lib/navigation'
 import { signOut } from '@/app/login/actions'
 
@@ -15,9 +17,11 @@ export function Sidebar() {
       aria-label="Navigazione principale"
       className="hidden w-56 shrink-0 flex-col overflow-y-auto border-r border-rule bg-sidebar px-3 py-5 md:flex"
     >
-      <Link href="/" className="mb-7 block border-l-2 border-primary pl-3">
+      <Link href="/" className="mb-5 block border-l-2 border-primary pl-3">
         <span className="font-heading text-lg leading-none">Life OS</span>
       </Link>
+
+      <SearchButton />
 
       <div className="flex-1 space-y-5">
         {NAV_GROUPS.map((group) => (
@@ -50,6 +54,34 @@ export function Sidebar() {
         </form>
       </div>
     </nav>
+  )
+}
+
+/**
+ * The shortcut written where it can be learnt.
+ *
+ * A keyboard shortcut nobody is told about is a keyboard shortcut nobody uses,
+ * and the modifier is read from the machine rather than assumed: printing ⌘ on
+ * Windows teaches the wrong key.
+ */
+function SearchButton() {
+  const modifier = useClientValue<string | null>(
+    () => (/mac|iphone|ipad/i.test(navigator.userAgent) ? '⌘' : 'Ctrl'),
+    null,
+  )
+
+  return (
+    <button
+      type="button"
+      onClick={openCommandPalette}
+      className="mb-6 flex w-full items-center gap-2 rounded-md border border-rule bg-background/60 px-3 py-2 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+    >
+      <Search className="size-4 shrink-0" aria-hidden />
+      Cerca
+      {modifier ? (
+        <span className="data ml-auto text-[0.6875rem] tracking-tight">{modifier} K</span>
+      ) : null}
+    </button>
   )
 }
 

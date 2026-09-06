@@ -35,6 +35,7 @@ export function ProjectCard({
 
   return (
     <li
+      data-entity-id={project.id}
       className={cn(
         'group border-b border-rule py-4 last:border-b-0',
         pending && 'opacity-60',

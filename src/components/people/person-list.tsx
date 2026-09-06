@@ -51,6 +51,7 @@ function PersonRowItem({ person }: { person: PersonRow }) {
 
   return (
     <li
+      data-entity-id={person.id}
       className={cn(
         'group border-b border-rule py-3 last:border-b-0',
         pending && 'opacity-60',

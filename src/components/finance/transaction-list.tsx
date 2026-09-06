@@ -74,6 +74,7 @@ function TransactionRow({
 
   return (
     <li
+      data-entity-id={transaction.id}
       className={cn(
         'group flex items-baseline gap-3 border-b border-rule py-3 last:border-b-0',
         pending && 'opacity-60',

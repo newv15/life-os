@@ -48,7 +48,10 @@ export function InboxItem({ item }: { item: InboxItemRow }) {
   }
 
   return (
-    <li className={cn('group border-b border-rule py-3 last:border-b-0', pending && 'opacity-60')}>
+    <li
+      data-entity-id={item.id}
+      className={cn('group border-b border-rule py-3 last:border-b-0', pending && 'opacity-60')}
+    >
       {editing ? (
         <form onSubmit={promote} className="space-y-2">
           <Input

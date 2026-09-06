@@ -53,6 +53,7 @@ function EventRowItem({ event }: { event: EventRow }) {
 
   return (
     <li
+      data-entity-id={event.id}
       className={cn('spine-item group', pending && 'opacity-60')}
       data-now={!past && isOverdue(event.starts_at) ? 'true' : 'false'}
     >
