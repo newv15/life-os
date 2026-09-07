@@ -18,7 +18,7 @@ Uso personale, singolo utente, costo **€0/mese**.
 
 ```
 WEB APP (Next.js)          TELEGRAM BOT
-`keeps_history`      │                         │
+       │                         │
        └───────┬─────────────────┘
                ▼
         INTERFACE ADAPTERS          risolvono l'identità utente
@@ -59,7 +59,7 @@ Tre regole che spiegano quasi tutte le scelte di questo repo:
 | AI | interfaccia `AIProvider`, default Gemini Flash | intercambiabile via env var |
 | Bot | Telegram Bot API via webhook | gratis, già sul telefono |
 | Hosting | Vercel Hobby | — |
-| Scheduler | **GitHub Actions**, non Vercel Cron | Vercel Hobby esegue i cron 1 volta al giorno: inutilizzabile per i promemoria |
+| Scheduler | **cron-job.org**, non Vercel Cron né GitHub Actions | Vercel Hobby esegue i cron 1 volta al giorno; i cron di GitHub si diradano fino a una volta ogni tre ore. Vedi «Scheduler» più sotto |
 
 ## Requisiti
 
@@ -165,7 +165,7 @@ Con un blocco unico, spuntare una riga vorrebbe dire riscrivere tutta la lista,
 e da telefono è il modo di perdere pezzi. Una voce registra **quando** è stata
 spuntata, non se: costa uguale e conserva quello che un booleano butta via.
 
- `keeps_history` è il carattere della lista, deciso quando la crei. La spesa si
+`keeps_history` è il carattere della lista, deciso quando la crei. La spesa si
 **svuota** e si riusa; i film visti **tengono lo storico**, e l'azione «svuota
 le spuntate» lì non compare nemmeno: quelle voci sono il contenuto della lista,
 non il suo scarto.
