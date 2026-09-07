@@ -18,14 +18,14 @@ Uso personale, singolo utente, costo **€0/mese**.
 
 ```
 WEB APP (Next.js)          TELEGRAM BOT
-       │                         │
+`keeps_history`      │                         │
        └───────┬─────────────────┘
                ▼
         INTERFACE ADAPTERS          risolvono l'identità utente
                ▼
           AI SERVICE                contesto → provider → tool loop → log
                ▼
-        TOOL REGISTRY               28 tool tipizzati con zod
+        TOOL REGISTRY               32 tool tipizzati con zod
                ▼
        BUSINESS LOGIC               lib/services — unico punto che scrive
                ▼
@@ -151,6 +151,27 @@ danni, quindi i due convivono.
 L'endpoint è idempotente e lavora su ciò che è **scaduto**, guardando sei ore
 indietro oltre che quarantotto avanti: un tick saltato o in ritardo non perde
 nulla.
+
+## Liste
+
+Da spuntare: la spesa, cosa mettere in valigia, i film da vedere. Il valore non
+è la schermata ma la frase detta camminando: **«aggiungi latte, pane e caffè
+alla spesa»**. Se la lista non esiste la crea, e lo dice — creare un contenitore
+vuoto non è inventare un dato, ma deve restare visibile, perché è l'unico modo
+di accorgersi di un nome capito male.
+
+**Due tabelle e non una**: le voci non sono un campo di testo dentro la lista.
+Con un blocco unico, spuntare una riga vorrebbe dire riscrivere tutta la lista,
+e da telefono è il modo di perdere pezzi. Una voce registra **quando** è stata
+spuntata, non se: costa uguale e conserva quello che un booleano butta via.
+
+ `keeps_history` è il carattere della lista, deciso quando la crei. La spesa si
+**svuota** e si riusa; i film visti **tengono lo storico**, e l'azione «svuota
+le spuntate» lì non compare nemmeno: quelle voci sono il contenuto della lista,
+non il suo scarto.
+
+Il nome è unico senza distinzione di maiuscole. Quando l'assistente risolve
+«alla spesa» non devono esistere una «Spesa» e una «spesa» fra cui indovinare.
 
 ## Vocali e foto
 
