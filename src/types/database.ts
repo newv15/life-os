@@ -1,7 +1,3 @@
-// Generated from the Supabase schema. Do not edit by hand.
-// Regenerate after any migration:
-//   npx supabase gen types typescript --project-id <ref> > src/types/database.ts
-
 export type Json =
   | string
   | number
@@ -713,6 +709,86 @@ export type Database = {
           updated_at?: string
           user_id?: string
           wins?: string | null
+        }
+        Relationships: []
+      }
+      list_items: {
+        Row: {
+          checked_at: string | null
+          created_at: string
+          created_via: Database["public"]["Enums"]["created_via"]
+          id: string
+          list_id: string
+          position: number
+          text: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          checked_at?: string | null
+          created_at?: string
+          created_via?: Database["public"]["Enums"]["created_via"]
+          id?: string
+          list_id: string
+          position?: number
+          text: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          checked_at?: string | null
+          created_at?: string
+          created_via?: Database["public"]["Enums"]["created_via"]
+          id?: string
+          list_id?: string
+          position?: number
+          text?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "list_items_list_fk"
+            columns: ["list_id", "user_id"]
+            isOneToOne: false
+            referencedRelation: "lists"
+            referencedColumns: ["id", "user_id"]
+          },
+        ]
+      }
+      lists: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          created_via: Database["public"]["Enums"]["created_via"]
+          id: string
+          keeps_history: boolean
+          name: string
+          position: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          created_via?: Database["public"]["Enums"]["created_via"]
+          id?: string
+          keeps_history?: boolean
+          name: string
+          position?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          archived_at?: string | null
+          created_at?: string
+          created_via?: Database["public"]["Enums"]["created_via"]
+          id?: string
+          keeps_history?: boolean
+          name?: string
+          position?: number
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }

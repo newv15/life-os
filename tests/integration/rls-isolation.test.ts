@@ -52,6 +52,8 @@ const OWNED_TABLES = [
   'pending_confirmations',
   'notifications',
   'automation_rules',
+  'lists',
+  'list_items',
 ] as const
 
 describe.skipIf(!configured)('RLS isolation', () => {
@@ -174,6 +176,24 @@ describe.skipIf(!configured)('RLS isolation', () => {
       .insert({ user_id: users.a.id, title: 'Task di A su progetto di B', project_id: projectB })
     expect(error).not.toBeNull()
     expect(error?.code).toBe('23503') // foreign_key_violation
+  })
+
+  it("cannot attach an item to another user's list, service role included", async () => {
+    // Same composite key, second relationship: (list_id, user_id) finds no
+    // matching list, so Postgres refuses the row on the one connection where
+    // RLS offers nothing - the Telegram and cron path.
+    const { data: listB } = await admin
+      .from('lists')
+      .insert({ user_id: users.b.id, name: `Spesa di B ${suffix}` })
+      .select('id')
+      .single()
+
+    const { error } = await admin
+      .from('list_items')
+      .insert({ user_id: users.a.id, list_id: listB!.id, text: 'Voce di A nella lista di B' })
+
+    expect(error).not.toBeNull()
+    expect(error?.code).toBe('23503')
   })
 
   it('rejects a cross-user link even under the service role, which bypasses RLS', async () => {
