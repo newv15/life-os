@@ -37,6 +37,12 @@ import {
   stopTimerTool,
   writeJournalTool,
 } from '@/lib/ai/tools/life'
+import {
+  addToListTool,
+  checkListItemTool,
+  clearCheckedTool,
+  showListTool,
+} from '@/lib/ai/tools/lists'
 
 /**
  * Everything the model is allowed to do.
@@ -79,6 +85,11 @@ const ALL_TOOLS: Tool[] = [
   startTimerTool,
   stopTimerTool,
   getTimeSummaryTool,
+  // Liste
+  addToListTool,
+  checkListItemTool,
+  showListTool,
+  clearCheckedTool,
   // Capture and overview
   captureNoteTool,
   listInboxTool,
