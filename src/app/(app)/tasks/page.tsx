@@ -38,6 +38,7 @@ export default async function TasksPage() {
               key={task.id}
               task={task}
               projectName={task.project_id ? projectName.get(task.project_id) : null}
+              projects={projects}
             />
           ))}
         </ul>
@@ -54,6 +55,7 @@ export default async function TasksPage() {
                 key={task.id}
                 task={task}
                 projectName={task.project_id ? projectName.get(task.project_id) : null}
+              projects={projects}
               />
             ))}
           </ul>

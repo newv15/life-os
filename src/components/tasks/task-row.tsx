@@ -1,17 +1,20 @@
 'use client'
 
-import { useOptimistic, useTransition } from 'react'
-import { Check, Trash2 } from 'lucide-react'
+import { useOptimistic, useState, useTransition } from 'react'
+import { Check, Pencil, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { formatRelativeDay, formatTime, isOverdue } from '@/lib/utils/date'
 import { PRIORITY_LABELS } from '@/lib/validation/enums'
 import { deleteTaskAction, setTaskDoneAction } from '@/app/(app)/tasks/actions'
+import { TaskEditor } from '@/components/tasks/task-editor'
 import type { TaskRow as Task } from '@/lib/db/repositories/tasks'
 
 export type TaskRowProps = {
   task: Task
   projectName?: string | null
+  /** Offered in the editor, so a task can be moved without leaving the list. */
+  projects?: { id: string; name: string }[]
 }
 
 /**
@@ -21,8 +24,9 @@ export type TaskRowProps = {
  * lands today. Priority is written as a word and only when it is high or
  * urgent - if everything were coloured, nothing would read as urgent.
  */
-export function TaskRow({ task, projectName }: TaskRowProps) {
+export function TaskRow({ task, projectName, projects = [] }: TaskRowProps) {
   const [pending, startTransition] = useTransition()
+  const [editing, setEditing] = useState(false)
   const [done, setDone] = useOptimistic(task.status === 'done')
 
   function toggle() {
@@ -64,12 +68,29 @@ export function TaskRow({ task, projectName }: TaskRowProps) {
       </button>
 
       <div className="min-w-0 flex-1">
-        <p className={cn('text-sm leading-snug', done && 'text-muted-foreground line-through')}>
-          {task.title}
-        </p>
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          className="block w-full text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        >
+          <span
+            className={cn('text-sm leading-snug', done && 'text-muted-foreground line-through')}
+          >
+            {task.title}
+          </span>
+        </button>
 
         <TaskMeta task={task} projectName={projectName} done={done} />
       </div>
+
+      <button
+        type="button"
+        onClick={() => setEditing(true)}
+        aria-label={`Modifica ${task.title}`}
+        className="mt-0.5 rounded p-1 text-muted-foreground opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 hover:text-foreground focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      >
+        <Pencil className="size-4" aria-hidden />
+      </button>
 
       <button
         type="button"
@@ -79,6 +100,10 @@ export function TaskRow({ task, projectName }: TaskRowProps) {
       >
         <Trash2 className="size-4" aria-hidden />
       </button>
+
+      {editing ? (
+        <TaskEditor task={task} projects={projects} open onOpenChange={setEditing} />
+      ) : null}
     </li>
   )
 }

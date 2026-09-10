@@ -241,3 +241,61 @@ const ITALIAN_WEEKDAYS: Record<string, string> = {
 function normaliseSeconds(value: string): string {
   return value.length === 16 ? `${value}:00` : value
 }
+
+/**
+ * The stored instant as a datetime-local input wants it: a wall clock, no zone.
+ *
+ * Slicing the ISO string would hand the input UTC, which reads two hours early
+ * here in summer - and the real damage is on save, where submitting the form
+ * untouched would move the task by that difference without anyone touching the
+ * field.
+ */
+export function toDateTimeLocal(
+  iso: string | null | undefined,
+  timeZone: string = DEFAULT_TIMEZONE,
+): string {
+  if (!iso) return ''
+  return formatInTimeZone(new Date(iso), timeZone, "yyyy-MM-dd'T'HH:mm")
+}
+
+// --- Mesi come chiave --------------------------------------------------------
+
+/**
+ * A month as "YYYY-MM".
+ *
+ * Small enough to live in a URL, sortable as a string, and unambiguous - which
+ * a localised label is not. Everything that navigates between months passes
+ * this around; the pretty name is produced only at the last moment.
+ */
+export function monthKeyOf(date: Date = new Date(), timeZone: string = DEFAULT_TIMEZONE): string {
+  return formatInTimeZone(date, timeZone, 'yyyy-MM')
+}
+
+/** The month before or after, crossing the new year correctly. */
+export function shiftMonthKey(key: string, delta: number): string {
+  const [year, month] = key.split('-').map(Number)
+
+  // Counted in months since year zero, so December + 1 lands on January of the
+  // next year instead of on a thirteenth month.
+  const total = year * 12 + (month - 1) + delta
+
+  return `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, '0')}`
+}
+
+/** First and last day of that month, February and leap years included. */
+export function monthRangeFromKey(key: string): { from: string; to: string } {
+  const [year, month] = key.split('-').map(Number)
+
+  // Day 0 of the next month is the last day of this one.
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate()
+
+  return {
+    from: `${key}-01`,
+    to: `${key}-${String(lastDay).padStart(2, '0')}`,
+  }
+}
+
+/** The month written the way someone would say it: "settembre 2026". */
+export function formatMonthKey(key: string, timeZone: string = DEFAULT_TIMEZONE): string {
+  return formatInTimeZone(new Date(`${key}-15T12:00:00Z`), timeZone, 'MMMM yyyy', { locale: it })
+}

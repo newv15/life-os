@@ -11,6 +11,11 @@ import {
   resolveCalendarDate,
   resolveInstant,
   startOfDayInTimeZone,
+  formatMonthKey,
+  monthKeyOf,
+  monthRangeFromKey,
+  shiftMonthKey,
+  toDateTimeLocal,
 } from '@/lib/utils/date'
 
 /**
@@ -177,5 +182,59 @@ describe('daysAgo', () => {
     // 24 hours is what a "last 7 days" window means, and this pins it.
     const afterChange = new Date('2026-10-28T12:00:00Z')
     expect(daysAgo(7, afterChange).toISOString()).toBe('2026-10-21T12:00:00.000Z')
+  })
+})
+
+describe('toDateTimeLocal', () => {
+  /**
+   * The value a datetime-local input wants is a wall clock with no zone, read
+   * in the person's timezone. Slicing the stored instant instead would show
+   * UTC - two hours early in summer here - and, worse, saving the form
+   * unchanged would silently move the task by those two hours.
+   */
+  it('shows the stored instant as the clock the person reads', () => {
+    expect(toDateTimeLocal('2026-09-06T18:23:00+00:00')).toBe('2026-09-06T20:23')
+  })
+
+  it('gets the offset right in winter too', () => {
+    expect(toDateTimeLocal('2026-01-15T18:23:00Z')).toBe('2026-01-15T19:23')
+  })
+
+  it('gives an empty field for a task with no deadline', () => {
+    expect(toDateTimeLocal(null)).toBe('')
+  })
+})
+
+describe('i mesi come chiave', () => {
+  it('torna indietro attraverso il capodanno', () => {
+    // Il caso che un mese = -1 sul numero sbaglia sempre.
+    expect(shiftMonthKey('2026-01', -1)).toBe('2025-12')
+  })
+
+  it('va avanti attraverso il capodanno', () => {
+    expect(shiftMonthKey('2026-12', 1)).toBe('2027-01')
+  })
+
+  it('resta nello stesso anno quando non serve saltare', () => {
+    expect(shiftMonthKey('2026-09', -1)).toBe('2026-08')
+  })
+
+  it('conosce la lunghezza di febbraio, bisestile compreso', () => {
+    expect(monthRangeFromKey('2024-02')).toEqual({ from: '2024-02-01', to: '2024-02-29' })
+    expect(monthRangeFromKey('2026-02')).toEqual({ from: '2026-02-01', to: '2026-02-28' })
+  })
+
+  it('copre il mese intero, non trenta giorni a caso', () => {
+    expect(monthRangeFromKey('2026-09')).toEqual({ from: '2026-09-01', to: '2026-09-30' })
+  })
+
+  it('lo scrive come lo direbbe una persona', () => {
+    expect(formatMonthKey('2026-09')).toBe('settembre 2026')
+  })
+
+  it('ricava la chiave da un istante, nel fuso di casa', () => {
+    // Mezzanotte e mezza del primo settembre a Roma è ancora agosto a Londra:
+    // leggerlo in UTC metterebbe il movimento nel mese sbagliato.
+    expect(monthKeyOf(new Date('2026-09-01T00:30:00+02:00'))).toBe('2026-09')
   })
 })

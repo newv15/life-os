@@ -13,17 +13,20 @@ export function BalanceSummary({
   accounts,
   summary,
   monthLabel,
+  showingPastMonth = false,
 }: {
   accounts: AccountRow[]
   summary: FinancialSummary
   monthLabel: string
+  /** True while looking back: the balance is today's, not that month's. */
+  showingPastMonth?: boolean
 }) {
   const total = accounts.reduce((sum, account) => sum + Number(account.current_balance), 0)
 
   return (
     <section aria-labelledby="saldo" className="mb-8">
       <h2 id="saldo" className="eyebrow mb-2">
-        Saldo
+        {showingPastMonth ? 'Saldo attuale' : 'Saldo'}
       </h2>
 
       <p className="data text-3xl leading-none">{formatEUR(total)}</p>

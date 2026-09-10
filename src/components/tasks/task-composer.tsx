@@ -45,7 +45,11 @@ export function TaskComposer({ projects = [] }: { projects?: ProjectWithProgress
           aria-label="Titolo del task"
           className="flex-1"
         />
-        <div className="flex gap-2">
+        {/* Wraps, and the date takes a whole line on a phone. Squeezed into a
+            shared row it lands around 147px, and at that width the browser
+            silently stops drawing the time fields: the hour is not missing,
+            it is unreachable. */}
+        <div className="flex flex-wrap gap-2">
           <Input
             type="datetime-local"
             name="dueAt"
